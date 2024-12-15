@@ -25,42 +25,82 @@ struct ListNode
   ListNode(int val, std::shared_ptr<ListNode> next_ptr):value(val), next(next_ptr){};
 };
 
-
-std::shared_ptr<ListNode> add_value_to_list(int value, std::shared_ptr<ListNode> head=nullptr)
+class CLinkList
 {
-  std::shared_ptr<ListNode> newNode = std::make_shared<ListNode>(value);
+protected:
+  std::shared_ptr<ListNode> head;
 
-  if(!head || head->value>=value){
-    newNode->next = head;
-    head = newNode;
-  } else {
+public:
+  CLinkList() = default;
+  virtual ~CLinkList() = default;
+
+  void addValue(int value){
+    std::shared_ptr<ListNode> newNode = std::make_shared<ListNode>(value);
+    if(!head){
+      head = newNode;
+    } else {
+      std::shared_ptr<ListNode> ptr = head;
+      while(ptr->next){
+        ptr = ptr->next;
+      }
+      ptr->next = newNode;
+    }
+  }
+
+  void dump_nodes()
+  {
     std::shared_ptr<ListNode> ptr = head;
-    while(ptr->next && ptr->next->value < value){
+    while(ptr){
+      std::cout << ptr->value << std::endl;
       ptr = ptr->next;
     }
-    newNode->next = ptr->next;
-    ptr->next = newNode;
   }
+};
 
-  return head;
-}
-
-void dump_nodes(std::shared_ptr<ListNode> ptr)
+class CSortedLinkList : public CLinkList
 {
-  while(ptr){
-    std::cout << ptr->value << std::endl;
-    ptr = ptr->next;
+public:
+  CSortedLinkList() = default;
+  virtual ~CSortedLinkList() = default;
+
+  void addValue(int value){
+    std::shared_ptr<ListNode> newNode = std::make_shared<ListNode>(value);
+
+    if(!head || head->value>=value){
+      newNode->next = head;
+      head = newNode;
+    } else {
+      std::shared_ptr<ListNode> ptr = head;
+      while(ptr->next && ptr->next->value < value){
+        ptr = ptr->next;
+      }
+      newNode->next = ptr->next;
+      ptr->next = newNode;
+    }
   }
-}
+
+  std::shared_ptr<ListNode> getHead(){
+    return head;
+  }
+};
 
 int main()
 {
-  std::shared_ptr<ListNode> ptr = add_value_to_list(10);
-  ptr = add_value_to_list(11, ptr);
-  ptr = add_value_to_list(9, ptr);
-  ptr = add_value_to_list(12, ptr);
+  std::cout << "LinkList" << std::endl;
+  CLinkList linkList;
+  linkList.addValue(10);
+  linkList.addValue(11);
+  linkList.addValue(9);
+  linkList.addValue(12);
+  linkList.dump_nodes();
 
-  dump_nodes(ptr);
+  std::cout << "\nSortedLinkList" << std::endl;
+  CSortedLinkList sortedLinkList;
+  sortedLinkList.addValue(10);
+  sortedLinkList.addValue(11);
+  sortedLinkList.addValue(9);
+  sortedLinkList.addValue(12);
+  sortedLinkList.dump_nodes();
 
   return 0;
 }
