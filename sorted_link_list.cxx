@@ -84,26 +84,29 @@ public:
       ptr->next = newNode;
     }
   }
-};
-
-
-std::shared_ptr<ListNode> mergeLists(std::shared_ptr<ListNode> l1, std::shared_ptr<ListNode> l2)
-{
-
-  if(!l1) return l2;
-  if(!l2) return l1;
-
-  if(l1->value < l2->value){
-    l1->next = mergeLists(l1->next, l2);
-    return l1;
-  } else {
-    l2->next = mergeLists(l1, l2->next);
-    return l2;
+  void mergeLists(CSortedLinkList& l2){
+    std::shared_ptr<ListNode> l1_head = getHead();
+    std::shared_ptr<ListNode> l2_head = l2.getHead();
+    head = _mergeLists(l1_head, l2_head);
   }
 
-}
+protected:
+  static std::shared_ptr<ListNode> _mergeLists(std::shared_ptr<ListNode> l1, std::shared_ptr<ListNode> l2)
+  {
 
+    if(!l1) return l2;
+    if(!l2) return l1;
 
+    if(l1->value < l2->value){
+      l1->next = _mergeLists(l1->next, l2);
+      return l1;
+    } else {
+      l2->next = _mergeLists(l1, l2->next);
+      return l2;
+    }
+
+  }
+};
 
 int main()
 {
@@ -131,8 +134,8 @@ int main()
   sortedLinkList2.addValue(3);
 
   std::cout << "\nMergedLinkList" << std::endl;
-  std::shared_ptr<ListNode> ptr = mergeLists(sortedLinkList.getHead(), sortedLinkList2.getHead());
-  linkList.dump_nodes(ptr);
+  sortedLinkList2.mergeLists(sortedLinkList);
+  sortedLinkList2.dump_nodes();
 
   return 0;
 }
