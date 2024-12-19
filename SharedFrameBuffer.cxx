@@ -98,7 +98,7 @@ int main()
       std::chrono::duration<double, std::milli>(1000.0f/fps));
   std::vector<Frame> frames = { 0, 1, 2, 3, 4 };
 
-  // test case 1
+  // test case 1 - simple in/out
   FrameBuffer buffers;
   buffers.enqueueFrames( frames );
 
@@ -106,9 +106,9 @@ int main()
     std::cout << buffers.dequeueFrame() << std::endl;
   }
 
-  // test case 2
+  // test case 2 - with fps and pts
   auto current = std::chrono::system_clock::now();
-  FrameBuffer buffers2(60.0f);
+  FrameBuffer buffers2(fps);
 
   buffers2.enqueueFrames( frames );
   current += frameDurationChronoMs;
