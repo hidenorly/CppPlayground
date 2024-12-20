@@ -26,7 +26,7 @@ class FrameBuffer
 {
 protected:
   float mSamplingRatePerSecond;
-  std::vector<std::pair<std::chrono::system_clock::time_point, Frame>> mFrames;
+  std::vector< std::pair<std::chrono::system_clock::time_point, Frame> > mFrames;
   int mFramePos;
   std::chrono::system_clock::time_point mLastTime;
   std::chrono::milliseconds mFrameDurationChronoMs;
@@ -88,6 +88,23 @@ public:
     }
     return result;
   }
+
+ std::vector<Frame> dequeueFrames(
+  std::chrono::system_clock::time_point startPTS = std::chrono::system_clock::from_time_t(0), 
+  std::chrono::system_clock::time_point endPTS = std::chrono::system_clock::from_time_t(0), 
+  std::chrono::milliseconds durationMilliSeconds =  
+       std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::duration<double, std::milli>(1000.0f/60.0f))){
+    std::vector<Frame> result;
+    for(std::chrono::system_clock::time_point pos = startPTS; pos<endPTS; pos=pos+durationMilliSeconds){
+      try {
+        result.push_back( dequeueFrame(pos) );
+      } catch (const std::invalid_argument& e) {
+        break;
+      }
+    }
+    return result;
+  }
+
 };
 
 
@@ -96,6 +113,7 @@ int main()
   double fps = 60.0f;
   auto frameDurationChronoMs = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::duration<double, std::milli>(1000.0f/fps));
+  auto startPos = std::chrono::system_clock::now();
   std::vector<Frame> frames = { 0, 1, 2, 3, 4 };
 
   // test case 1 - simple in/out
@@ -107,7 +125,7 @@ int main()
   }
 
   // test case 2 - with fps and pts
-  auto current = std::chrono::system_clock::now();
+  auto current = startPos;
   FrameBuffer buffers2(fps);
 
   buffers2.enqueueFrames( frames );
@@ -119,6 +137,15 @@ int main()
     }
   } catch (const std::invalid_argument& e) {
     std::cout << e.what() << std::endl;
+  }
+
+  // test case 3 - frames with fps and pts
+  FrameBuffer buffers3(fps);
+
+  buffers3.enqueueFrames( frames );
+  std::vector<Frame> frames3 = buffers3.dequeueFrames( startPos, startPos+frameDurationChronoMs*5, frameDurationChronoMs);
+  for(auto& frame : frames3){
+      std::cout << frame << std::endl;
   }
 
   return 0;
