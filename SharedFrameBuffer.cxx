@@ -19,6 +19,7 @@
 #include <utility>
 #include <chrono>
 #include <stdexcept>
+#include <mutex>
 
 typedef int Frame; // tentative
 
@@ -30,6 +31,7 @@ protected:
   int mFramePos;
   std::chrono::system_clock::time_point mLastTime;
   std::chrono::milliseconds mFrameDurationChronoMs;
+  std::mutex mMutex;
 
 public:
   FrameBuffer(float nSamplingRatePerSecond=1.0f):mSamplingRatePerSecond(nSamplingRatePerSecond),mFramePos(0)
@@ -44,6 +46,7 @@ public:
   }
 
   void enqueueFrames(const std::vector<Frame>& frames){
+    std::lock_guard<std::mutex> lock(mMutex);
     auto now = std::chrono::system_clock::now();
     auto current = mLastTime;
     if(now < current){
@@ -58,10 +61,12 @@ public:
   }
 
   bool isEmpty(){
+    std::lock_guard<std::mutex> lock(mMutex);
     return mFrames.empty();
   }
 
   Frame dequeueFrame(std::chrono::system_clock::time_point nPTS = std::chrono::system_clock::from_time_t(0)){
+    std::lock_guard<std::mutex> lock(mMutex);
     Frame result;
     if( !mFrames.empty() ){
       if(nPTS == std::chrono::system_clock::from_time_t(0)){
