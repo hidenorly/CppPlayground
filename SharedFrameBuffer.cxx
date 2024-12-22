@@ -29,13 +29,13 @@ protected:
   float mSamplingRatePerSecond;
   std::vector< std::pair<std::chrono::system_clock::time_point, Frame> > mFrames;
   int mFramePos;
+  int mStoringSize;
   std::chrono::system_clock::time_point mLastTime;
   std::chrono::milliseconds mFrameDurationChronoMs;
   std::mutex mMutex;
 
 public:
-  FrameBuffer(float nSamplingRatePerSecond=1.0f):mSamplingRatePerSecond(nSamplingRatePerSecond),mFramePos(0)
-  {
+  FrameBuffer(float nSamplingRatePerSecond=60.0f, int storingSize=0 /* infinite */):mSamplingRatePerSecond(nSamplingRatePerSecond),mFramePos(0), mStoringSize(storingSize){
     mLastTime = std::chrono::system_clock::now();
     mFrameDurationChronoMs = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::duration<double, std::milli>(1000.0f/nSamplingRatePerSecond));
@@ -57,12 +57,28 @@ public:
       mFramePos++;
       current += mFrameDurationChronoMs;
     }
+    if( mStoringSize && mFrames.size() > mStoringSize ){
+      // mFrames.erase(mFrames.begin(), mFrames.begin()+(mStoringSize-mFrames.size()));
+      for(int i=0; i<mStoringSize-mFrames.size(); i++){
+        mFrames.erase(mFrames.begin()); 
+      }
+    }
     mLastTime = current;
   }
 
-  bool isEmpty(){
+  bool isEmpty(std::chrono::system_clock::time_point nPTS = std::chrono::system_clock::from_time_t(0)){
     std::lock_guard<std::mutex> lock(mMutex);
-    return mFrames.empty();
+    if( nPTS == std::chrono::system_clock::from_time_t(0) ){
+      return mFrames.empty();
+    } else {
+      for(auto& frame: mFrames){
+        if(frame.first>=nPTS){
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 
   Frame dequeueFrame(std::chrono::system_clock::time_point nPTS = std::chrono::system_clock::from_time_t(0)){
@@ -152,6 +168,15 @@ int main()
   for(auto& frame : frames3){
       std::cout << frame << std::endl;
   }
+
+  // test case 4 - simple in/out with buffer size limit
+  FrameBuffer buffers4(60.0f, 4);
+  buffers4.enqueueFrames( frames );
+
+  while( !buffers4.isEmpty() ){
+    std::cout << buffers4.dequeueFrame() << std::endl;
+  }
+
 
   return 0;
 }
