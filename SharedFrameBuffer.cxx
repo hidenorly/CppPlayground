@@ -228,5 +228,17 @@ int main()
     std::cout << e.what() << std::endl;
   }
 
+  current = startPos;
+  try{
+    while( !buffers5.isEmpty() ){
+      std::cout << buffers5.dequeueFrame(current) << std::endl;
+      current += frameDurationChronoMs;
+    }
+  } catch (const std::invalid_argument& e) {
+    std::cout << e.what() << std::endl;
+  }
+
+  
+
   return 0;
 }
