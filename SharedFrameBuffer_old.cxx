@@ -21,8 +21,9 @@
 #include <stdexcept>
 #include <mutex>
 
+typedef int Frame; // tentative
 
-template<typename Frame> class TSharedFrameBuffer
+class FrameBuffer
 {
 protected:
   float mSamplingRatePerSecond;
@@ -34,13 +35,13 @@ protected:
   std::mutex mMutex;
 
 public:
-  TSharedFrameBuffer(float nSamplingRatePerSecond=60.0f, int storingSize=0 /* infinite */):mSamplingRatePerSecond(nSamplingRatePerSecond),mFramePos(0), mStoringSize(storingSize){
+  FrameBuffer(float nSamplingRatePerSecond=60.0f, int storingSize=0 /* infinite */):mSamplingRatePerSecond(nSamplingRatePerSecond),mFramePos(0), mStoringSize(storingSize){
     mLastTime = std::chrono::system_clock::now();
     mFrameDurationChronoMs = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::duration<double, std::milli>(1000.0f/nSamplingRatePerSecond));
   }
 
-  virtual ~TSharedFrameBuffer(){
+  virtual ~FrameBuffer(){
 
   }
 
@@ -86,7 +87,9 @@ public:
     if( !mFrames.empty() ){
       if(nPTS == std::chrono::system_clock::from_time_t(0)){
         result = mFrames.front().second;
+        mFrames.erase(mFrames.begin());        
       } else {
+        int nCount = 0;
         bool found = false;
         for(auto& frame: mFrames){
           if(frame.first>=nPTS){
@@ -94,8 +97,12 @@ public:
             found = true;
             break;
           }
+          nCount++;
         }
-        if( !found ){
+        if( found ){
+          mFrames.erase(mFrames.begin(), mFrames.begin()+nCount);
+        } else {
+          mFrames.erase(mFrames.begin(), mFrames.end());
           throw std::invalid_argument("wrong pts");;
         }
       }
@@ -120,3 +127,118 @@ public:
   }
 
 };
+
+class SharedFrameBuffer : public FrameBuffer
+{
+protected:
+
+public:
+  SharedFrameBuffer(float nSamplingRatePerSecond=60.0f, int storingSize=0 /* infinite */):FrameBuffer(nSamplingRatePerSecond, storingSize)
+  {
+  }
+
+  virtual ~SharedFrameBuffer(){};
+
+  Frame dequeueFrame(std::chrono::system_clock::time_point nPTS = std::chrono::system_clock::from_time_t(0)){
+    std::lock_guard<std::mutex> lock(mMutex);
+    Frame result;
+    if( !mFrames.empty() ){
+      if(nPTS == std::chrono::system_clock::from_time_t(0)){
+        result = mFrames.front().second;
+      } else {
+        bool found = false;
+        for(auto& frame: mFrames){
+          if(frame.first>=nPTS){
+            result = frame.second;
+            found = true;
+            break;
+          }
+        }
+        if( !found ){
+          throw std::invalid_argument("wrong pts");;
+        }
+      }
+    }
+    return result;
+  }
+};
+
+
+int main()
+{
+  double fps = 60.0f;
+  auto frameDurationChronoMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::duration<double, std::milli>(1000.0f/fps));
+  auto startPos = std::chrono::system_clock::now();
+  std::vector<Frame> frames = { 0, 1, 2, 3, 4 };
+
+  // test case 1 - simple in/out
+  FrameBuffer buffers;
+  buffers.enqueueFrames( frames );
+
+  while( !buffers.isEmpty() ){
+    std::cout << buffers.dequeueFrame() << std::endl;
+  }
+
+  // test case 2 - with fps and pts
+  auto current = startPos;
+  FrameBuffer buffers2(fps);
+
+  buffers2.enqueueFrames( frames );
+  current += frameDurationChronoMs;
+  try{
+    while( !buffers2.isEmpty() ){
+      std::cout << buffers2.dequeueFrame(current) << std::endl;
+      current += frameDurationChronoMs;
+    }
+  } catch (const std::invalid_argument& e) {
+    std::cout << e.what() << std::endl;
+  }
+
+  // test case 3 - frames with fps and pts
+  FrameBuffer buffers3(fps);
+
+  buffers3.enqueueFrames( frames );
+  std::vector<Frame> frames3 = buffers3.dequeueFrames( startPos, startPos+frameDurationChronoMs*5, frameDurationChronoMs);
+  for(auto& frame : frames3){
+      std::cout << frame << std::endl;
+  }
+
+  // test case 4 - simple in/out with buffer size limit
+  FrameBuffer buffers4(fps, 4);
+  buffers4.enqueueFrames( frames );
+
+  while( !buffers4.isEmpty() ){
+    std::cout << buffers4.dequeueFrame() << std::endl;
+  }
+
+  // test case 5
+  current = startPos;
+  SharedFrameBuffer buffers5(fps, 10);
+
+  buffers5.enqueueFrames( frames );
+  buffers5.enqueueFrames( frames );
+  current += frameDurationChronoMs;
+  try{
+    while( !buffers5.isEmpty() ){
+      std::cout << buffers5.dequeueFrame(current) << std::endl;
+      current += frameDurationChronoMs;
+    }
+  } catch (const std::invalid_argument& e) {
+    std::cout << e.what() << std::endl;
+  }
+
+  current = startPos;
+  try{
+    while( !buffers5.isEmpty() ){
+      std::cout << buffers5.dequeueFrame(current) << std::endl;
+      current += frameDurationChronoMs;
+    }
+  } catch (const std::invalid_argument& e) {
+    std::cout << e.what() << std::endl;
+  }
+
+  
+
+  return 0;
+}
