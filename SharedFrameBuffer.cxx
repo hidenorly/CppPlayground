@@ -19,9 +19,10 @@
 #include <stdexcept>
 
 typedef int Frame; // tentative
-
-
 using SharedFrameBuffer = TSharedFrameBuffer<Frame>;
+
+using PSharedFrameBuffer = TSharedFrameBuffer<std::shared_ptr<Frame>>;
+
 
 
 int main()
@@ -60,7 +61,36 @@ int main()
     std::cout << e.what() << std::endl;
   }
 
-  
+  // test case 6
+  current = startPos;
+  std::vector<std::shared_ptr<Frame>> pframes;
+  for(auto frame : frames){
+    pframes.push_back( std::make_shared<Frame>(frame) );
+  }
+  PSharedFrameBuffer buffers6(fps, 10);
+  buffers6.enqueueFrames( pframes );
+  buffers6.enqueueFrames( pframes );
+
+  current += frameDurationChronoMs;
+  try{
+    while( !buffers6.isEmpty() ){
+      std::cout << *(buffers6.dequeueFrame(current)) << std::endl;
+      current += frameDurationChronoMs;
+    }
+  } catch (const std::invalid_argument& e) {
+    std::cout << e.what() << std::endl;
+  }
+
+  current = startPos;
+  try{
+    while( !buffers6.isEmpty() ){
+      std::cout << *(buffers6.dequeueFrame(current)) << std::endl;
+      current += frameDurationChronoMs;
+    }
+  } catch (const std::invalid_argument& e) {
+    std::cout << e.what() << std::endl;
+  }
+
 
   return 0;
 }
