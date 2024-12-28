@@ -17,12 +17,48 @@
 #include "SharedFrameBuffer.hpp"
 #include <chrono>
 #include <stdexcept>
+#include <thread>
 
 typedef int Frame; // tentative
 using SharedFrameBuffer = TSharedFrameBuffer<Frame>;
 
 using PSharedFrameBuffer = TSharedFrameBuffer<std::shared_ptr<Frame>>;
 
+
+void test_parallel(void)
+{
+  double fps = 60.0f;
+  SharedFrameBuffer buffers(fps, 100);
+  auto frameDurationChronoMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::duration<double, std::milli>(1000.0f/fps));
+  auto startPos = std::chrono::system_clock::now();
+  auto current = startPos;
+
+  auto producer = [&]() {
+      for (int i = 0; i < 100; ++i) {
+        buffers.enqueueFrames( std::vector<Frame>(i) );
+        std::this_thread::sleep_for(frameDurationChronoMs/2);
+      }
+  };
+
+  auto consumer = [&]() {
+      try{
+        while( !buffers.isEmpty() ){
+          std::this_thread::sleep_for(frameDurationChronoMs);
+          std::cout << buffers.dequeueFrame(current) << std::endl;
+          current += frameDurationChronoMs;
+        }
+      } catch (const std::invalid_argument& e) {
+        std::cout << e.what() << std::endl;
+      }
+  };
+
+  std::thread producerThread(producer);
+  std::thread consumerThread(consumer);
+
+  producerThread.join();
+  consumerThread.join();
+}
 
 
 int main()
@@ -90,6 +126,9 @@ int main()
   } catch (const std::invalid_argument& e) {
     std::cout << e.what() << std::endl;
   }
+
+  //test case 7
+  test_parallel();
 
 
   return 0;
