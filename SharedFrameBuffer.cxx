@@ -55,9 +55,11 @@ void test_parallel(void)
 
   std::thread producerThread(producer);
   std::thread consumerThread(consumer);
+  std::thread consumerThread2(consumer);
 
   producerThread.join();
   consumerThread.join();
+  consumerThread2.join();
 }
 
 
