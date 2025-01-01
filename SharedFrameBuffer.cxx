@@ -42,15 +42,25 @@ void test_parallel(void)
 
   auto consumer = [&]() {
     auto current = startPos;
+    int i=0;
+    int j=0;
+    std::this_thread::sleep_for(frameDurationChronoMs);
     try{
-      while( !buffers.isEmpty() ){
-        std::this_thread::sleep_for(frameDurationChronoMs);
-        std::cout << buffers.dequeueFrame(current) << std::endl;
+      do {
+        Frame frame = buffers.dequeueFrame(current);
+        std::cout << frame << std::endl;
+        if( i == frame ){
+          i++;
+        }
         current += frameDurationChronoMs;
-      }
+        std::this_thread::sleep_for(frameDurationChronoMs);
+        j++;
+        if(j>100) break;
+      } while( !buffers.isEmpty() );
     } catch (const std::invalid_argument& e) {
       std::cout << e.what() << std::endl;
     }
+    std::cout << "matched count :" << i << std::endl;
   };
 
   std::thread producerThread(producer);
@@ -75,6 +85,7 @@ int main()
   auto current = startPos;
 
   // test case 5
+  std::cout << "test case5" << std::endl;
   current = startPos;
   SharedFrameBuffer buffers5(fps, 10);
 
@@ -101,6 +112,7 @@ int main()
   }
 
   // test case 6
+  std::cout << "test case6" << std::endl;
   current = startPos;
   std::vector<std::shared_ptr<Frame>> pframes;
   for(auto frame : frames){
@@ -131,6 +143,7 @@ int main()
   }
 
   //test case 7
+  std::cout << "test case7" << std::endl;
   test_parallel();
 
 
