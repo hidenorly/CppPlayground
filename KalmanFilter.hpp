@@ -25,11 +25,11 @@ protected:
     std::vector<double> mErrors;        // Error covariances
 
 public:
-    TKalmanFilter(double processVariance, double measurementVariance, 
-                   const std::vector<DataType>& initialPosition, double initialError)
+    TKalmanFilter(const std::vector<DataType>& initialValues, double processVariance = 1e-4, double measurementVariance = 1e-2, 
+                   double initialError = 1.0)
         : mProcessVariance(processVariance),
           mMeasurementVariance(measurementVariance),
-          mEstimates(initialPosition),
+          mEstimates(initialValues),
           mInitialError(initialError) {}
     virtual ~TKalmanFilter() = default;
 

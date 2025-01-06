@@ -30,7 +30,7 @@ int main() {
     double initialError = 1.0;
 
     // Initialize Kalman Filter
-    KalmanFilter2D kf(processVariance, measurementVariance, initialPosition, initialError);
+    KalmanFilter2D kf(initialPosition, processVariance, measurementVariance, initialError);
 
     // Example GPS measurements (latitude, longitude)
     std::vector<std::vector<LocationInfo>> measurements = {
