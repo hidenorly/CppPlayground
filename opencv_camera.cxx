@@ -18,6 +18,52 @@
 #include <iostream>
 #include <string>
 
+class OpenCvCamera
+{
+protected:
+    std::shared_ptr<cv::VideoCapture> mpCap;
+
+public:
+    OpenCvCamera(){
+
+    };
+
+    bool open(int nCameraId = 0){
+        if( mpCap ){
+            close();
+        }
+        mpCap = std::make_shared<cv::VideoCapture>(nCameraId);
+        return mpCap && mpCap->isOpened();
+    }
+
+    void close(){
+        if( mpCap ){
+            mpCap->release();
+            mpCap.reset();
+        }
+    }
+
+    friend OpenCvCamera& operator>>(OpenCvCamera& camera, cv::Mat& frame) {
+        if (!camera.isOpened()) {
+            throw std::runtime_error("Camera is not opened!");
+        }
+        camera.mpCap->read(frame);
+        if (frame.empty()) {
+            throw std::runtime_error("Failed to capture frame!");
+        }
+        return camera;
+    }
+
+    bool isOpened(){
+        return mpCap && mpCap->isOpened();
+    }
+
+    virtual ~OpenCvCamera(){
+        close();
+    }
+
+};
+
 int main(int argc, char** argv) {
     if (argc != 2) {
         std::cerr << "Usage: " << argv[0] << " <output_filename>" << std::endl;
@@ -27,7 +73,8 @@ int main(int argc, char** argv) {
     std::string output_filename = argv[1];
 
     // open camera
-    cv::VideoCapture cap(0);
+    OpenCvCamera cap;
+    cap.open();
     if (!cap.isOpened()) {
         std::cerr << "Error: Unable to open the camera." << std::endl;
         return 1;
@@ -64,7 +111,7 @@ int main(int argc, char** argv) {
     }
 
     // release
-    cap.release();
+    cap.close();
     cv::destroyAllWindows();
 
     return 0;
