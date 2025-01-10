@@ -20,6 +20,7 @@
 #include <numeric>
 #include <algorithm>
 #include <stdexcept>
+#include <boost/math/distributions/students_t.hpp>
 
 // Calculate the mean of a dataset
 double mean(const std::vector<double>& data) {
@@ -34,6 +35,13 @@ double variance(const std::vector<double>& data, double mean_value) {
         return acc + (x - mean_value) * (x - mean_value);
     });
     return sum_squared_diff / (data.size() - 1);
+}
+
+// Calculate the p-value based on the t-statistic and degrees of freedom
+double calculate_p_value(double t_statistic, int df) {
+    boost::math::students_t dist(df); // Create Student's t-distribution with given degrees of freedom
+    double p_value = 2 * (1 - boost::math::cdf(dist, std::abs(t_statistic))); // Two-tailed test
+    return p_value;
 }
 
 // Perform a two-sample t-test
@@ -68,25 +76,31 @@ int degrees_of_freedom(const std::vector<double>& group1, const std::vector<doub
 }
 
 int main() {
-    // Example data for two groups
     std::vector<double> groupA = {85, 90, 78, 92, 88};
     std::vector<double> groupB = {76, 81, 79, 80, 77};
 
     try {
-        // Calculate t-statistic
         double t_statistic = t_test(groupA, groupB);
-
-        // Calculate degrees of freedom
         int df = degrees_of_freedom(groupA, groupB);
+
+        // Calculate the p-value
+        double p_value = calculate_p_value(t_statistic, df);
 
         // Display results
         std::cout << "t-statistic: " << t_statistic << std::endl;
         std::cout << "Degrees of freedom: " << df << std::endl;
+        std::cout << "p-value: " << p_value << std::endl;
 
-        // Interpretation requires comparing with a critical t-value
-        std::cout << "Compare t-statistic with the critical t-value for the desired alpha and degrees of freedom." << std::endl;
+        // Define the significance level
+        double alpha = 0.05; // Commonly used significance level (5%)
+
+        // Make a decision
+        if (p_value < alpha) {
+            std::cout << "Reject the null hypothesis (p < " << alpha << ")." << std::endl;
+        } else {
+            std::cout << "Fail to reject the null hypothesis (p >= " << alpha << ")." << std::endl;
+        }
     } catch (const std::exception& e) {
-        // Handle errors
         std::cerr << "Error: " << e.what() << std::endl;
     }
 
