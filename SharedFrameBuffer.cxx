@@ -34,9 +34,9 @@ void test_parallel(void)
   auto startPos = std::chrono::system_clock::now();
 
   auto producer = [&]() {
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < 100; i++) {
       buffers.enqueueFrames( std::vector<Frame>(i) );
-      std::this_thread::sleep_for(frameDurationChronoMs/2);
+      std::this_thread::sleep_for(frameDurationChronoMs);
     }
   };
 
@@ -64,8 +64,8 @@ void test_parallel(void)
   };
 
   std::thread producerThread(producer);
-  std::thread consumerThread(consumer);
   std::this_thread::sleep_for(frameDurationChronoMs/3);
+  std::thread consumerThread(consumer);
   std::thread consumerThread2(consumer);
 
   producerThread.join();
