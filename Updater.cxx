@@ -20,12 +20,22 @@
 #include <vector>
 #include <unordered_map>
 #include <map>
+#include <memory>
 
 class IUpdateInstallHal
 {
 public:
   virtual std::vector<std::string> getSupportedIds() = 0;
   virtual std::map<std::string, std::string> getMetaDataById(std::string id) = 0;
+
+  class IUpdateSession {
+  public:
+    virtual bool write(std::vector<uint8_t> chunk) = 0;
+    virtual bool cancel() = 0;
+    virtual float getProgressPercent() = 0;
+  };
+
+  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id) = 0;
 };
 
 
@@ -51,6 +61,37 @@ protected:
     mDummyData["mcu_1"] = dummyMeta2;
   };
 
+protected:
+  class UpdateSessionImpl : public IUpdateInstallHal::IUpdateSession
+  {
+  protected:
+    int mMaxSize;
+    int mWrittenSize;
+
+  public:
+    UpdateSessionImpl(int nSize):mMaxSize(nSize), mWrittenSize(0)
+    {
+    }
+    virtual ~UpdateSessionImpl(){};
+
+    virtual bool write(std::vector<uint8_t> chunk){
+      mWrittenSize += chunk.size();
+      return mWrittenSize < mMaxSize;
+    }
+
+    virtual bool cancel(){
+      return true;
+    }
+
+    virtual float getProgressPercent(){
+      float progressPercent = (float)mWrittenSize/(float)mMaxSize*100.0f;
+      if( progressPercent> 100.0f ){
+        return 100.0f;
+      }
+      return progressPercent;
+    }
+  };
+
 public:
   UpdateInstallHalImpl(){
     setUpDummyData();
@@ -71,6 +112,13 @@ public:
     }
     return std::map<std::string, std::string>({});
   }
+
+  std::shared_ptr<IUpdateSession> startUpdateSession(std::string id){
+    std::shared_ptr<IUpdateSession> result = std::make_shared<UpdateSessionImpl>( DUMMY_SIZE );
+    return result;
+  }
+
+  constexpr static int DUMMY_SIZE = 1024*1024;
 };
 
 
@@ -79,11 +127,21 @@ int main(int argc, char** argv) {
   std::shared_ptr<IUpdateInstallHal> hal = std::make_shared<UpdateInstallHalImpl>();
 
   std::vector<std::string> updateTargets = hal->getSupportedIds();
+  std::map<std::string, std::shared_ptr<IUpdateInstallHal::IUpdateSession>> sessions;
   for(auto& id : updateTargets){
     std::cout << id << std::endl;
     std::map<std::string, std::string> theMeta = hal->getMetaDataById(id);
     for( auto& [key, value] : theMeta ){
       std::cout << "\t" << key << ":" << value << std::endl;
+    }
+    sessions[id] = hal->startUpdateSession(id);
+  }
+
+  for(int i=0; i<4; i++){
+    for(auto& [id, session] : sessions){
+      std::vector<uint8_t> chunk(UpdateInstallHalImpl::DUMMY_SIZE/4);
+      session->write(chunk);
+      std::cout << "id=" << id << " progress=" << std::to_string(session->getProgressPercent()) << std::endl;
     }
   }
 
