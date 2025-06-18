@@ -21,6 +21,7 @@
 #include <unordered_map>
 #include <map>
 #include <memory>
+#include <functional>
 
 class IUpdateInstallHal
 {
@@ -35,7 +36,8 @@ public:
     virtual float getProgressPercent() = 0;
   };
 
-  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id) = 0;
+  typedef std::function<void(std::string id, bool isSuccessfullyDone)> COMPLETION_CALLBACK;
+  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion) = 0;
 };
 
 
@@ -65,18 +67,24 @@ protected:
   class UpdateSessionImpl : public IUpdateInstallHal::IUpdateSession
   {
   protected:
-    int mMaxSize;
+    const int mMaxSize;
     int mWrittenSize;
+    const std::string mId;
+    const COMPLETION_CALLBACK mCompletion;
 
   public:
-    UpdateSessionImpl(int nSize):mMaxSize(nSize), mWrittenSize(0)
+    UpdateSessionImpl(const std::string id, const int nSize, const COMPLETION_CALLBACK completion):mId(id),mMaxSize(nSize), mWrittenSize(0), mCompletion(completion)
     {
     }
     virtual ~UpdateSessionImpl(){};
 
     virtual bool write(std::vector<uint8_t> chunk){
       mWrittenSize += chunk.size();
-      return mWrittenSize < mMaxSize;
+      bool result = mWrittenSize < mMaxSize;
+      if( !result && mCompletion ){
+        mCompletion(mId, !result);
+      }
+      return result;
     }
 
     virtual bool cancel(){
@@ -113,8 +121,8 @@ public:
     return std::map<std::string, std::string>({});
   }
 
-  std::shared_ptr<IUpdateSession> startUpdateSession(std::string id){
-    std::shared_ptr<IUpdateSession> result = std::make_shared<UpdateSessionImpl>( DUMMY_SIZE );
+  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion){
+    std::shared_ptr<IUpdateSession> result = std::make_shared<UpdateSessionImpl>( id, DUMMY_SIZE, completion );
     return result;
   }
 
@@ -128,13 +136,18 @@ int main(int argc, char** argv) {
 
   std::vector<std::string> updateTargets = hal->getSupportedIds();
   std::map<std::string, std::shared_ptr<IUpdateInstallHal::IUpdateSession>> sessions;
+
+  IUpdateInstallHal::COMPLETION_CALLBACK callback = [&](std::string id, bool isSuccessfullyDone){
+    std::cout << "Callback::id=" << id << " : " << (isSuccessfullyDone ? "Completed" : "Not Completed") << std::endl;
+  };
+
   for(auto& id : updateTargets){
     std::cout << id << std::endl;
     std::map<std::string, std::string> theMeta = hal->getMetaDataById(id);
     for( auto& [key, value] : theMeta ){
       std::cout << "\t" << key << ":" << value << std::endl;
     }
-    sessions[id] = hal->startUpdateSession(id);
+    sessions[id] = hal->startUpdateSession(id, callback);
   }
 
   for(int i=0; i<4; i++){
