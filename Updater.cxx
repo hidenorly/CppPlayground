@@ -38,6 +38,8 @@ public:
 
   typedef std::function<void(std::string id, bool isSuccessfullyDone)> COMPLETION_CALLBACK;
   virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion) = 0;
+
+  virtual void validate(std::string id, COMPLETION_CALLBACK completion) = 0;
 };
 
 
@@ -88,6 +90,7 @@ protected:
     }
 
     virtual bool cancel(){
+      mWrittenSize = 0;
       return true;
     }
 
@@ -126,6 +129,11 @@ public:
     return result;
   }
 
+  virtual void validate(std::string id, COMPLETION_CALLBACK completion){
+    completion(id, true);
+  }
+
+
   constexpr static int DUMMY_SIZE = 1024*1024;
 };
 
@@ -137,8 +145,15 @@ int main(int argc, char** argv) {
   std::vector<std::string> updateTargets = hal->getSupportedIds();
   std::map<std::string, std::shared_ptr<IUpdateInstallHal::IUpdateSession>> sessions;
 
-  IUpdateInstallHal::COMPLETION_CALLBACK callback = [&](std::string id, bool isSuccessfullyDone){
-    std::cout << "Callback::id=" << id << " : " << (isSuccessfullyDone ? "Completed" : "Not Completed") << std::endl;
+  IUpdateInstallHal::COMPLETION_CALLBACK validateCompletion = [&](std::string id, bool isSuccessfullyDone){
+    std::cout << "ValidateCompletion::id=" << id << " : " << (isSuccessfullyDone ? "Completed" : "Not Completed") << std::endl;
+  };
+
+  IUpdateInstallHal::COMPLETION_CALLBACK writeCompletion = [&](std::string id, bool isSuccessfullyDone){
+    std::cout << "WriteCompletion::id=" << id << " : " << (isSuccessfullyDone ? "Completed" : "Not Completed") << std::endl;
+
+    std::cout << "Request Validate : " << id << std::endl;
+    hal->validate(id, validateCompletion);
   };
 
   for(auto& id : updateTargets){
@@ -147,7 +162,7 @@ int main(int argc, char** argv) {
     for( auto& [key, value] : theMeta ){
       std::cout << "\t" << key << ":" << value << std::endl;
     }
-    sessions[id] = hal->startUpdateSession(id, callback);
+    sessions[id] = hal->startUpdateSession(id, writeCompletion);
   }
 
   for(int i=0; i<4; i++){
