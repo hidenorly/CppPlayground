@@ -40,6 +40,10 @@ public:
   virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion) = 0;
 
   virtual void validate(std::string id, COMPLETION_CALLBACK completion) = 0;
+  // Set Active for next (the written firmware will be applied without invoking this if the subsystem doesn't support A/B)
+  virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion) = 0;
+  // optional method. If you'd like to apply immediately and if the subsystem support runtime reboot.
+  virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion) = 0;
 };
 
 
@@ -104,6 +108,9 @@ protected:
   };
 
 public:
+  constexpr static int DUMMY_SIZE = 1024*1024;
+
+public:
   UpdateInstallHalImpl(){
     setUpDummyData();
   }
@@ -133,8 +140,13 @@ public:
     completion(id, true);
   }
 
+  virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion){
+    completion(id, true);
+  }
 
-  constexpr static int DUMMY_SIZE = 1024*1024;
+  virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion){
+    completion(id, true);
+  }
 };
 
 
@@ -145,10 +157,28 @@ int main(int argc, char** argv) {
   std::vector<std::string> updateTargets = hal->getSupportedIds();
   std::map<std::string, std::shared_ptr<IUpdateInstallHal::IUpdateSession>> sessions;
 
-  IUpdateInstallHal::COMPLETION_CALLBACK validateCompletion = [&](std::string id, bool isSuccessfullyDone){
-    std::cout << "ValidateCompletion::id=" << id << " : " << (isSuccessfullyDone ? "Completed" : "Not Completed") << std::endl;
+  // completion handler for restart the subsystem to apply immediately
+  IUpdateInstallHal::COMPLETION_CALLBACK restartCompletion = [&](std::string id, bool isSuccessfullyDone){
+    std::cout << "RestartCompletion::id=" << id << " : " << (isSuccessfullyDone ? "Completed" : "Not Completed") << std::endl;
   };
 
+  // completion handler for validation for written image
+  IUpdateInstallHal::COMPLETION_CALLBACK activateCompletion = [&](std::string id, bool isSuccessfullyDone){
+    std::cout << "ActivateCompletion::id=" << id << " : " << (isSuccessfullyDone ? "Completed" : "Not Completed") << std::endl;
+
+    std::cout << "Request restart : " << id << std::endl;
+    hal->restartAndWaitToBoot(id, restartCompletion);
+  };
+
+  // completion handler for validation for written image
+  IUpdateInstallHal::COMPLETION_CALLBACK validateCompletion = [&](std::string id, bool isSuccessfullyDone){
+    std::cout << "ValidateCompletion::id=" << id << " : " << (isSuccessfullyDone ? "Completed" : "Not Completed") << std::endl;
+
+    std::cout << "Request Activate : " << id << std::endl;
+    hal->activateForNext(id, activateCompletion);
+  };
+
+  // Session for writing new image
   IUpdateInstallHal::COMPLETION_CALLBACK writeCompletion = [&](std::string id, bool isSuccessfullyDone){
     std::cout << "WriteCompletion::id=" << id << " : " << (isSuccessfullyDone ? "Completed" : "Not Completed") << std::endl;
 
