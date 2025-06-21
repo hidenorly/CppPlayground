@@ -26,22 +26,40 @@
 class IUpdateInstallHal
 {
 public:
+  // enumerate supported subsystem IDs
   virtual std::vector<std::string> getSupportedIds() = 0;
+
+  const char* META_VERSION = "version";
+  const char* META_HASH = "hash";
+
+  // get the specified subsystem's attributes
   virtual std::map<std::string, std::string> getMetaDataById(std::string id) = 0;
 
+
+  // async method completion
+  typedef std::function<void(std::string id, bool isSuccessfullyDone)> COMPLETION_CALLBACK;
+
+  // session to write the new image.
+  // Note that B-side(next-side) is written if supported.
+  //           A-side(current) is written if B-side isn't suppoted.
   class IUpdateSession {
   public:
     virtual bool write(std::vector<uint8_t> chunk) = 0;
-    virtual bool cancel() = 0;
     virtual float getProgressPercent() = 0;
+
+    // cancel might be failed if B-side isn't supported
+    virtual bool cancel() = 0;
   };
 
-  typedef std::function<void(std::string id, bool isSuccessfullyDone)> COMPLETION_CALLBACK;
+  // create session to write the new firmware image
   virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion) = 0;
 
+  // validate the written image
   virtual void validate(std::string id, COMPLETION_CALLBACK completion) = 0;
+
   // Set Active for next (the written firmware will be applied without invoking this if the subsystem doesn't support A/B)
   virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion) = 0;
+
   // optional method. If you'd like to apply immediately and if the subsystem support runtime reboot.
   virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion) = 0;
 };
@@ -54,8 +72,8 @@ protected:
 
   void setUpDummyData(){
     std::map<std::string, std::string> dummyMeta;
-    dummyMeta["version"] = "0000";
-    dummyMeta["hash"] = "0123456789abcdef";
+    dummyMeta[META_VERSION] = "0000";
+    dummyMeta[META_HASH] = "0123456789abcdef";
 
     mDummyData["system"] = dummyMeta;
     mDummyData["vendor"] = dummyMeta;
@@ -64,8 +82,8 @@ protected:
     mDummyData["odm"] = dummyMeta;
 
     std::map<std::string, std::string> dummyMeta2;
-    dummyMeta2["version"] = "1234";
-    dummyMeta2["hash"] = "abcdef0123456789";
+    dummyMeta2[META_VERSION] = "1234";
+    dummyMeta2[META_HASH] = "abcdef0123456789";
     mDummyData["mcu_1"] = dummyMeta2;
   };
 
@@ -93,17 +111,17 @@ protected:
       return result;
     }
 
-    virtual bool cancel(){
-      mWrittenSize = 0;
-      return true;
-    }
-
     virtual float getProgressPercent(){
       float progressPercent = (float)mWrittenSize/(float)mMaxSize*100.0f;
       if( progressPercent> 100.0f ){
         return 100.0f;
       }
       return progressPercent;
+    }
+
+    virtual bool cancel(){
+      mWrittenSize = 0;
+      return true;
     }
   };
 
