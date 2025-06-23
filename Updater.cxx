@@ -68,26 +68,6 @@ public:
 class UpdateInstallHalImpl : public IUpdateInstallHal
 {
 protected:
-  std::map<std::string, std::map<std::string, std::string>> mDummyData;
-
-  void setUpDummyData(){
-    std::map<std::string, std::string> dummyMeta;
-    dummyMeta[META_VERSION] = "0000";
-    dummyMeta[META_HASH] = "0123456789abcdef";
-
-    mDummyData["system"] = dummyMeta;
-    mDummyData["vendor"] = dummyMeta;
-    mDummyData["product"] = dummyMeta;
-    mDummyData["oem"] = dummyMeta;
-    mDummyData["odm"] = dummyMeta;
-
-    std::map<std::string, std::string> dummyMeta2;
-    dummyMeta2[META_VERSION] = "1234";
-    dummyMeta2[META_HASH] = "abcdef0123456789";
-    mDummyData["mcu_1"] = dummyMeta2;
-  };
-
-protected:
   class UpdateSessionImpl : public IUpdateInstallHal::IUpdateSession
   {
   protected:
@@ -126,13 +106,67 @@ protected:
   };
 
 public:
+  UpdateInstallHalImpl() = default;
+  virtual ~UpdateInstallHalImpl() = default;
+
+  virtual std::vector<std::string> getSupportedIds(){
+    std::vector<std::string> ids;
+    return ids;
+  }
+
+  virtual std::map<std::string, std::string> getMetaDataById(std::string id){
+    return std::map<std::string, std::string>({});
+  }
+
+  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion){
+    std::shared_ptr<IUpdateSession> result = std::make_shared<UpdateSessionImpl>( id, 0, completion );
+    return result;
+  }
+
+  virtual void validate(std::string id, COMPLETION_CALLBACK completion){
+    completion(id, true);
+  }
+
+  virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion){
+    completion(id, true);
+  }
+
+  virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion){
+    completion(id, true);
+  }
+};
+
+
+class UpdateInstallHalMockImpl : public UpdateInstallHalImpl
+{
+protected:
+  std::map<std::string, std::map<std::string, std::string>> mDummyData;
+
+  void setUpDummyData(){
+    std::map<std::string, std::string> dummyMeta;
+    dummyMeta[META_VERSION] = "0000";
+    dummyMeta[META_HASH] = "0123456789abcdef";
+
+    mDummyData["system"] = dummyMeta;
+    mDummyData["vendor"] = dummyMeta;
+    mDummyData["product"] = dummyMeta;
+    mDummyData["oem"] = dummyMeta;
+    mDummyData["odm"] = dummyMeta;
+
+    std::map<std::string, std::string> dummyMeta2;
+    dummyMeta2[META_VERSION] = "1234";
+    dummyMeta2[META_HASH] = "abcdef0123456789";
+    mDummyData["mcu_1"] = dummyMeta2;
+  };
+
+public:
   constexpr static int DUMMY_SIZE = 1024*1024;
 
 public:
-  UpdateInstallHalImpl(){
+  UpdateInstallHalMockImpl(){
     setUpDummyData();
   }
-  virtual ~UpdateInstallHalImpl() = default;
+  virtual ~UpdateInstallHalMockImpl() = default;
 
   virtual std::vector<std::string> getSupportedIds(){
     std::vector<std::string> ids;
@@ -153,24 +187,12 @@ public:
     std::shared_ptr<IUpdateSession> result = std::make_shared<UpdateSessionImpl>( id, DUMMY_SIZE, completion );
     return result;
   }
-
-  virtual void validate(std::string id, COMPLETION_CALLBACK completion){
-    completion(id, true);
-  }
-
-  virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion){
-    completion(id, true);
-  }
-
-  virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion){
-    completion(id, true);
-  }
 };
 
 
 
 int main(int argc, char** argv) {
-  std::shared_ptr<IUpdateInstallHal> hal = std::make_shared<UpdateInstallHalImpl>();
+  std::shared_ptr<IUpdateInstallHal> hal = std::make_shared<UpdateInstallHalMockImpl>();
 
   std::vector<std::string> updateTargets = hal->getSupportedIds();
   std::map<std::string, std::shared_ptr<IUpdateInstallHal::IUpdateSession>> sessions;
@@ -215,7 +237,7 @@ int main(int argc, char** argv) {
 
   for(int i=0; i<4; i++){
     for(auto& [id, session] : sessions){
-      std::vector<uint8_t> chunk(UpdateInstallHalImpl::DUMMY_SIZE/4);
+      std::vector<uint8_t> chunk(UpdateInstallHalMockImpl::DUMMY_SIZE/4);
       session->write(chunk);
       std::cout << "id=" << id << " progress=" << std::to_string(session->getProgressPercent()) << std::endl;
     }
