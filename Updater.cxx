@@ -190,9 +190,25 @@ public:
 };
 
 
+class UpdateInstallHalFactory
+{
+protected:
+  static std::shared_ptr<IUpdateInstallHal> mInstance;
+
+public:
+  static std::shared_ptr<IUpdateInstallHal> getInstance(){
+    if(!mInstance){
+      mInstance = std::make_shared<UpdateInstallHalMockImpl>();
+    }
+    return mInstance;
+  }
+};
+
+std::shared_ptr<IUpdateInstallHal> UpdateInstallHalFactory::mInstance;
+
 
 int main(int argc, char** argv) {
-  std::shared_ptr<IUpdateInstallHal> hal = std::make_shared<UpdateInstallHalMockImpl>();
+  std::shared_ptr<IUpdateInstallHal> hal = UpdateInstallHalFactory::getInstance();
 
   std::vector<std::string> updateTargets = hal->getSupportedIds();
   std::map<std::string, std::shared_ptr<IUpdateInstallHal::IUpdateSession>> sessions;
