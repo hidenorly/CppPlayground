@@ -89,6 +89,13 @@ public:
         : BaseException(message, ExceptionSeverity::Recoverable, location) {}
 };
 
+class IllegalInvocationException final : public BaseException {
+public:
+    explicit IllegalInvocationException(std::string_view message,
+        std::source_location location = std::source_location::current())
+        : BaseException(message, ExceptionSeverity::Recoverable, location) {}
+};
+
 class IllegalStateException final : public BaseException {
 public:
     explicit IllegalStateException(std::string_view message,
@@ -150,9 +157,10 @@ protected:
     int mWrittenSize;
     const std::string mId;
     const COMPLETION_CALLBACK mCompletion;
+    bool mIsCompleted;
 
   public:
-    UpdateSessionImpl(const std::string id, const int nSize, const COMPLETION_CALLBACK completion):mId(id),mMaxSize(nSize), mWrittenSize(0), mCompletion(completion)
+    UpdateSessionImpl(const std::string id, const int nSize, const COMPLETION_CALLBACK completion):mId(id),mMaxSize(nSize), mWrittenSize(0), mCompletion(completion), mIsCompleted(false)
     {
     }
     virtual ~UpdateSessionImpl(){};
@@ -161,7 +169,12 @@ protected:
       mWrittenSize += chunk.size();
       bool result = mWrittenSize < mMaxSize;
       if( !result && mCompletion ){
-        mCompletion(mId, !result);
+        if( !mIsCompleted ){
+          mCompletion(mId, !result);
+          mIsCompleted = true;
+        } else {
+          throw IllegalInvocationException("Already done to update");
+        }
       }
       return result;
     }
@@ -175,6 +188,7 @@ protected:
     }
 
     virtual bool cancel(){
+      if( mIsCompleted ) return false;
       mWrittenSize = 0;
       return true;
     }
@@ -259,8 +273,15 @@ public:
   }
 
   virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion){
-    std::shared_ptr<IUpdateSession> result = std::make_shared<UpdateSessionImpl>( id, DUMMY_SIZE, completion );
-    return result;
+    if( mDummyData.contains(id) ){
+      std::shared_ptr<IUpdateSession> result = std::make_shared<UpdateSessionImpl>( id, DUMMY_SIZE, completion );
+      return result;
+    } else {
+      std::string msg = "The id ";
+      msg += id;
+      msg += " is not supported";
+      throw InvalidArgumentException(msg);
+    }
   }
 };
 
