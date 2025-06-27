@@ -355,5 +355,20 @@ int main(int argc, char** argv) {
     }
   }
 
+  // test for over-written case. expect to catch IllegalInvocationException
+  std::string id_for_test; 
+  for(auto& [id, session] : sessions){
+    id_for_test = id; // for test
+    break;
+  }
+  try{
+      std::vector<uint8_t> chunk(UpdateInstallHalMockImpl::DUMMY_SIZE/4);
+      sessions[id_for_test]->write(chunk);
+  } catch (IllegalInvocationException& ex){
+    ex.dump();
+  }
+
+
+
   return 0;
 }
