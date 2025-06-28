@@ -269,6 +269,7 @@ public:
     if( mDummyData.contains(id) ){
       return mDummyData[id];
     }
+    throw InvalidArgumentException(std::string("The id:")+id+" isn't supported");
     return std::map<std::string, std::string>({});
   }
 
@@ -279,7 +280,7 @@ public:
     } else {
       std::string msg = "The id ";
       msg += id;
-      msg += " is not supported";
+      msg += " isn't supported";
       throw InvalidArgumentException(msg);
     }
   }
