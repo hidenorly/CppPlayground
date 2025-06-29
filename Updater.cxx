@@ -104,8 +104,7 @@ public:
 };
 
 
-
-class IUpdateInstallHal
+class IUpdateCore
 {
 public:
   // enumerate supported subsystem IDs
@@ -117,10 +116,23 @@ public:
   // get the specified subsystem's attributes
   virtual std::map<std::string, std::string> getMetaDataById(std::string id) = 0;
 
-
   // async method completion
   typedef std::function<void(std::string id, bool isSuccessfullyDone)> COMPLETION_CALLBACK;
 
+  // validate the written image
+  virtual void validate(std::string id, COMPLETION_CALLBACK completion) = 0;
+
+  // Set Active for next (the written firmware will be applied without invoking this if the subsystem doesn't support A/B)
+  virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion) = 0;
+
+  // optional method. If you'd like to apply immediately and if the subsystem support runtime reboot.
+  virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion) = 0;
+};
+
+
+class IUpdateInstallHal : public IUpdateCore
+{
+public:
   // session to write the new image.
   // Note that B-side(next-side) is written if supported.
   //           A-side(current) is written if B-side isn't suppoted.
@@ -135,15 +147,16 @@ public:
 
   // create session to write the new firmware image
   virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion) = 0;
+};
 
-  // validate the written image
-  virtual void validate(std::string id, COMPLETION_CALLBACK completion) = 0;
+class IConcreteUpdateHal : public IUpdateCore
+{
+public:
+    virtual bool write(std::string id, std::vector<uint8_t> chunk) = 0;
+    virtual float getProgressPercent(std::string id) = 0;
 
-  // Set Active for next (the written firmware will be applied without invoking this if the subsystem doesn't support A/B)
-  virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion) = 0;
-
-  // optional method. If you'd like to apply immediately and if the subsystem support runtime reboot.
-  virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion) = 0;
+    // cancel might be failed if B-side isn't supported
+    virtual bool cancel(std::string id) = 0;
 };
 
 
