@@ -163,6 +163,7 @@ public:
 class UpdateInstallHalImpl : public IUpdateInstallHal
 {
 protected:
+  // UpdateSession Impl
   class UpdateSessionImpl : public IUpdateInstallHal::IUpdateSession
   {
   protected:
@@ -171,9 +172,10 @@ protected:
     const std::string mId;
     const COMPLETION_CALLBACK mCompletion;
     bool mIsCompleted;
+    std::shared_ptr<IConcreteUpdateHal> mConcreteHal;
 
   public:
-    UpdateSessionImpl(const std::string id, const int nSize, const COMPLETION_CALLBACK completion):mId(id),mMaxSize(nSize), mWrittenSize(0), mCompletion(completion), mIsCompleted(false)
+    UpdateSessionImpl(const std::string id, const int nSize, const COMPLETION_CALLBACK completion, std::shared_ptr<IConcreteUpdateHal> pConcreteHal = nullptr):mId(id),mMaxSize(nSize), mWrittenSize(0), mCompletion(completion), mIsCompleted(false), mConcreteHal(pConcreteHal)
     {
     }
     virtual ~UpdateSessionImpl(){};
@@ -207,34 +209,69 @@ protected:
     }
   };
 
+protected:
+    std::map<std::string, std::shared_ptr<IConcreteUpdateHal>> mConcreteHals;
+    void throwBadId(std::string id){
+      std::string msg = "The id ";
+      msg += id;
+      msg += " isn't supported";
+      throw InvalidArgumentException(msg);
+    }
+
 public:
   UpdateInstallHalImpl() = default;
   virtual ~UpdateInstallHalImpl() = default;
 
   virtual std::vector<std::string> getSupportedIds(){
     std::vector<std::string> ids;
+    for( auto& [id, hal] : mConcreteHals ){
+      ids.push_back(id);
+    }
     return ids;
   }
 
   virtual std::map<std::string, std::string> getMetaDataById(std::string id){
+    if( mConcreteHals.contains(id) && mConcreteHals[id] ){
+      return mConcreteHals[id]->getMetaDataById(id);
+    }
     return std::map<std::string, std::string>({});
   }
 
   virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion){
-    std::shared_ptr<IUpdateSession> result = std::make_shared<UpdateSessionImpl>( id, 0, completion );
+    std::shared_ptr<IUpdateSession> result;
+    if( mConcreteHals.contains(id) && mConcreteHals[id] ){
+      result = std::make_shared<UpdateSessionImpl>( id, 0, completion, mConcreteHals[id] );
+    } else {
+      throwBadId(id);
+    }
     return result;
   }
 
   virtual void validate(std::string id, COMPLETION_CALLBACK completion){
-    completion(id, true);
+    if( mConcreteHals.contains(id) && mConcreteHals[id] ){
+      mConcreteHals[id]->validate(id, completion);
+    } else {
+      completion(id, true);
+      throwBadId(id);
+    }
   }
 
   virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion){
-    completion(id, true);
+    if( mConcreteHals.contains(id) && mConcreteHals[id] ){
+      mConcreteHals[id]->activateForNext(id, completion);
+    } else {
+      completion(id, true);
+      throwBadId(id);
+    }
   }
 
   virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion){
-    completion(id, true);
+    if( mConcreteHals.contains(id) && mConcreteHals[id] ){
+      mConcreteHals[id]->restartAndWaitToBoot(id, completion);
+    } else {
+      completion(id, true);
+      throwBadId(id);
+    }
   }
 };
 
@@ -285,6 +322,22 @@ public:
     throw InvalidArgumentException(std::string("The id:")+id+" isn't supported");
     return std::map<std::string, std::string>({});
   }
+
+  virtual void validate(std::string id, COMPLETION_CALLBACK completion){
+    completion(id, true);
+  }
+
+  // Set Active for next (the written firmware will be applied without invoking this if the subsystem doesn't support A/B)
+  virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion){
+    completion(id, true);
+  }
+
+  // optional method. If you'd like to apply immediately and if the subsystem support runtime reboot.
+  virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion){
+    completion(id, true);
+  }
+
+
 
   virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion){
     if( mDummyData.contains(id) ){
