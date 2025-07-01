@@ -162,7 +162,7 @@ public:
 
 class UpdateInstallHalImpl : public IUpdateInstallHal
 {
-protected:
+public:
   // UpdateSession Impl
   class UpdateSessionImpl : public IUpdateInstallHal::IUpdateSession
   {
@@ -240,7 +240,7 @@ public:
   virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion){
     std::shared_ptr<IUpdateSession> result;
     if( mConcreteHals.contains(id) && mConcreteHals[id] ){
-      result = std::make_shared<UpdateSessionImpl>( id, 0, completion, mConcreteHals[id] );
+      result = std::make_shared<UpdateInstallHalImpl::UpdateSessionImpl>( id, 0, completion, mConcreteHals[id] );
     } else {
       throwBadId(id);
     }
@@ -276,10 +276,17 @@ public:
 };
 
 
-class UpdateInstallHalMockImpl : public UpdateInstallHalImpl
+class MockConstants
+{
+public:
+  constexpr static int DUMMY_SIZE = 1024*1024;
+};
+
+class ConcreteUpdateHalMockImpl : public IConcreteUpdateHal
 {
 protected:
   std::map<std::string, std::map<std::string, std::string>> mDummyData;
+  std::map<std::string, std::shared_ptr<IUpdateInstallHal::IUpdateSession>> mSessions;
 
   void setUpDummyData(){
     std::map<std::string, std::string> dummyMeta;
@@ -296,17 +303,23 @@ protected:
     dummyMeta2[META_VERSION] = "1234";
     dummyMeta2[META_HASH] = "abcdef0123456789";
     mDummyData["mcu_1"] = dummyMeta2;
-  };
+  }
+
+  void throwBadId(std::string id){
+    std::string msg = "The id ";
+    msg += id;
+    msg += " isn't supported";
+    throw InvalidArgumentException(msg);
+  }
+
 
 public:
-  constexpr static int DUMMY_SIZE = 1024*1024;
-
-public:
-  UpdateInstallHalMockImpl(){
+  ConcreteUpdateHalMockImpl(){
     setUpDummyData();
   }
-  virtual ~UpdateInstallHalMockImpl() = default;
+  virtual ~ConcreteUpdateHalMockImpl() = default;
 
+  // enumerate supported subsystem IDs
   virtual std::vector<std::string> getSupportedIds(){
     std::vector<std::string> ids;
     for( auto& [key, val] : mDummyData ){
@@ -315,40 +328,119 @@ public:
     return ids;
   }
 
+  // get the specified subsystem's attributes
   virtual std::map<std::string, std::string> getMetaDataById(std::string id){
     if( mDummyData.contains(id) ){
       return mDummyData[id];
+    } else {
+      throwBadId(id);
     }
-    throw InvalidArgumentException(std::string("The id:")+id+" isn't supported");
     return std::map<std::string, std::string>({});
   }
 
+  // validate the written image
   virtual void validate(std::string id, COMPLETION_CALLBACK completion){
-    completion(id, true);
+    if( mDummyData.contains(id) ){
+      completion(id, true);
+    } else {
+      throwBadId(id);
+    }
   }
 
   // Set Active for next (the written firmware will be applied without invoking this if the subsystem doesn't support A/B)
   virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion){
-    completion(id, true);
+    if( mDummyData.contains(id) ){
+      completion(id, true);
+    } else {
+      throwBadId(id);
+    }
   }
 
   // optional method. If you'd like to apply immediately and if the subsystem support runtime reboot.
   virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion){
-    completion(id, true);
+    if( mDummyData.contains(id) ){
+      completion(id, true);
+    } else {
+      throwBadId(id);
+    }
+  }
+
+  // --- for session
+  virtual bool write(std::string id, std::vector<uint8_t> chunk){
+    bool result = false;
+    if( mSessions.contains(id) && mSessions[id] ){
+      result = mSessions[id]->write(chunk);
+    }
+    return result;
+  }
+
+  virtual float getProgressPercent(std::string id){
+    float result = 100.0f;
+    if( mSessions.contains(id) && mSessions[id] ){
+      result = mSessions[id]->getProgressPercent();
+    }
+    return result;
+  }
+
+  // cancel might be failed if B-side isn't supported
+  virtual bool cancel(std::string id){
+    bool result = false;
+    if( mSessions.contains(id) && mSessions[id] ){
+      result = mSessions[id]->cancel();
+    }
+    return result;
+  }
+
+  virtual std::shared_ptr<IUpdateInstallHal::IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion){
+    if( mDummyData.contains(id) ){
+      return std::make_shared<UpdateInstallHalImpl::UpdateSessionImpl>( id, MockConstants::DUMMY_SIZE, completion );
+    } else {
+      throwBadId(id);
+    }
+    return nullptr;
+  }
+};
+
+
+
+class UpdateInstallHalMockImpl : public UpdateInstallHalImpl
+{
+protected:
+  std::shared_ptr<ConcreteUpdateHalMockImpl> mMockImpl;
+
+public:
+  UpdateInstallHalMockImpl(){
+    mMockImpl = std::make_shared<ConcreteUpdateHalMockImpl>();
+  }
+
+  virtual ~UpdateInstallHalMockImpl() = default;
+
+  virtual std::vector<std::string> getSupportedIds(){
+    return mMockImpl->getSupportedIds();
+  }
+
+  virtual std::map<std::string, std::string> getMetaDataById(std::string id){
+    return mMockImpl->getMetaDataById(id);
+  }
+
+  // validate the written image
+  virtual void validate(std::string id, COMPLETION_CALLBACK completion){
+    return mMockImpl->validate(id, completion);
+  }
+
+  // Set Active for next (the written firmware will be applied without invoking this if the subsystem doesn't support A/B)
+  virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion){
+    return mMockImpl->activateForNext(id, completion);
+  }
+
+  // optional method. If you'd like to apply immediately and if the subsystem support runtime reboot.
+  virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion){
+    return mMockImpl->restartAndWaitToBoot(id, completion);
   }
 
 
-
   virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion){
-    if( mDummyData.contains(id) ){
-      std::shared_ptr<IUpdateSession> result = std::make_shared<UpdateSessionImpl>( id, DUMMY_SIZE, completion );
-      return result;
-    } else {
-      std::string msg = "The id ";
-      msg += id;
-      msg += " isn't supported";
-      throw InvalidArgumentException(msg);
-    }
+    return mMockImpl->startUpdateSession(id, completion);
   }
 };
 
@@ -374,6 +466,10 @@ int main(int argc, char** argv) {
   std::shared_ptr<IUpdateInstallHal> hal = UpdateInstallHalFactory::getInstance();
 
   std::vector<std::string> updateTargets = hal->getSupportedIds();
+  for(auto& id : updateTargets){
+    std::cout << id << std::endl;
+  }
+
   std::map<std::string, std::shared_ptr<IUpdateInstallHal::IUpdateSession>> sessions;
 
   // completion handler for restart the subsystem to apply immediately
@@ -416,7 +512,7 @@ int main(int argc, char** argv) {
 
   for(int i=0; i<4; i++){
     for(auto& [id, session] : sessions){
-      std::vector<uint8_t> chunk(UpdateInstallHalMockImpl::DUMMY_SIZE/4);
+      std::vector<uint8_t> chunk(MockConstants::DUMMY_SIZE/4);
       session->write(chunk);
       std::cout << "id=" << id << " progress=" << std::to_string(session->getProgressPercent()) << std::endl;
     }
@@ -429,13 +525,11 @@ int main(int argc, char** argv) {
     break;
   }
   try{
-      std::vector<uint8_t> chunk(UpdateInstallHalMockImpl::DUMMY_SIZE/4);
+      std::vector<uint8_t> chunk(MockConstants::DUMMY_SIZE/4);
       sessions[id_for_test]->write(chunk);
-  } catch (IllegalInvocationException& ex){
+  } catch (BaseException& ex){
     ex.dump();
   }
-
-
 
   return 0;
 }
