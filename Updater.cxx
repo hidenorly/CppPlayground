@@ -29,251 +29,7 @@
 #include <sstream>
 #include <cxxabi.h>
 
-enum class ExceptionSeverity {
-    Recoverable,
-    Critical
-};
-
-class BaseException : public std::exception {
-protected:
-    std::string mMsg;
-    ExceptionSeverity mSeverity;
-    std::source_location mLocation;
-
-
-public:
-    BaseException(std::string_view message,
-                  ExceptionSeverity severity,
-                  std::source_location location = std::source_location::current())
-        : mMsg(message),
-          mSeverity(severity),
-          mLocation(location) {}
-
-    const char* what() const noexcept override {
-        return mMsg.c_str();
-    }
-
-    ExceptionSeverity severity() const noexcept {
-        return mSeverity;
-    }
-
-    bool isRecoverable() const noexcept {
-        return mSeverity == ExceptionSeverity::Recoverable;
-    }
-
-    const std::source_location& location() const noexcept {
-        return mLocation;
-    }
-
-  std::string demangle(const char* name) const {
-    int status = 0;
-    char* demangled = abi::__cxa_demangle(name, nullptr, nullptr, &status);
-    std::string result = (status == 0 && demangled) ? demangled : name;
-    free(demangled);
-    return result;
-  }
-
-    void dump(std::ostream& os = std::cerr) const {
-    os << demangle(typeid(*this).name()) << ": "
-      << what() << " ("
-      << (isRecoverable() ? "RECOVERABLE" : "CRITICAL") << ")\n\t"
-      << location().file_name() << ':' << location().line()
-      << std::endl;
-    }
-};
-
-class InvalidArgumentException final : public BaseException {
-public:
-    explicit InvalidArgumentException(std::string_view message,
-        std::source_location location = std::source_location::current())
-        : BaseException(message, ExceptionSeverity::Recoverable, location) {}
-};
-
-class IllegalInvocationException final : public BaseException {
-public:
-    explicit IllegalInvocationException(std::string_view message,
-        std::source_location location = std::source_location::current())
-        : BaseException(message, ExceptionSeverity::Recoverable, location) {}
-};
-
-class IllegalStateException final : public BaseException {
-public:
-    explicit IllegalStateException(std::string_view message,
-        std::source_location location = std::source_location::current())
-        : BaseException(message, ExceptionSeverity::Critical, location) {}
-};
-
-
-class IUpdateCore
-{
-public:
-  // enumerate supported subsystem IDs
-  virtual std::vector<std::string> getSupportedIds() = 0;
-
-  const char* META_VERSION = "version";
-  const char* META_HASH = "hash";
-
-  // get the specified subsystem's attributes
-  virtual std::map<std::string, std::string> getMetaDataById(std::string id) = 0;
-
-  // async method completion
-  typedef std::function<void(std::string id, bool isSuccessfullyDone)> COMPLETION_CALLBACK;
-
-  // validate the written image
-  virtual void validate(std::string id, COMPLETION_CALLBACK completion) = 0;
-
-  // Set Active for next (the written firmware will be applied without invoking this if the subsystem doesn't support A/B)
-  virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion) = 0;
-
-  // optional method. If you'd like to apply immediately and if the subsystem support runtime reboot.
-  virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion) = 0;
-};
-
-
-class IUpdateInstallHal : public IUpdateCore
-{
-public:
-  // session to write the new image.
-  // Note that B-side(next-side) is written if supported.
-  //           A-side(current) is written if B-side isn't suppoted.
-  class IUpdateSession {
-  public:
-    virtual bool write(std::vector<uint8_t> chunk) = 0;
-    virtual float getProgressPercent() = 0;
-
-    // cancel might be failed if B-side isn't supported
-    virtual bool cancel() = 0;
-  };
-
-  // create session to write the new firmware image
-  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion) = 0;
-};
-
-class IConcreteUpdateHal : public IUpdateCore
-{
-public:
-    virtual bool write(std::string id, std::vector<uint8_t> chunk) = 0;
-    virtual float getProgressPercent(std::string id) = 0;
-
-    // cancel might be failed if B-side isn't supported
-    virtual bool cancel(std::string id) = 0;
-};
-
-
-class UpdateInstallHalImpl : public IUpdateInstallHal
-{
-public:
-  // UpdateSession Impl
-  class UpdateSessionImpl : public IUpdateInstallHal::IUpdateSession
-  {
-  protected:
-    const int mMaxSize;
-    int mWrittenSize;
-    const std::string mId;
-    const COMPLETION_CALLBACK mCompletion;
-    bool mIsCompleted;
-    std::shared_ptr<IConcreteUpdateHal> mConcreteHal;
-
-  public:
-    UpdateSessionImpl(const std::string id, const int nSize, const COMPLETION_CALLBACK completion, std::shared_ptr<IConcreteUpdateHal> pConcreteHal = nullptr):mId(id),mMaxSize(nSize), mWrittenSize(0), mCompletion(completion), mIsCompleted(false), mConcreteHal(pConcreteHal)
-    {
-    }
-    virtual ~UpdateSessionImpl(){};
-
-    virtual bool write(std::vector<uint8_t> chunk){
-      mWrittenSize += chunk.size();
-      bool result = mWrittenSize < mMaxSize;
-      if( !result && mCompletion ){
-        if( !mIsCompleted ){
-          mCompletion(mId, !result);
-          mIsCompleted = true;
-        } else {
-          throw IllegalInvocationException("Already done to update");
-        }
-      }
-      return result;
-    }
-
-    virtual float getProgressPercent(){
-      float progressPercent = (float)mWrittenSize/(float)mMaxSize*100.0f;
-      if( progressPercent> 100.0f ){
-        return 100.0f;
-      }
-      return progressPercent;
-    }
-
-    virtual bool cancel(){
-      if( mIsCompleted ) return false;
-      mWrittenSize = 0;
-      return true;
-    }
-  };
-
-protected:
-    std::map<std::string, std::shared_ptr<IConcreteUpdateHal>> mConcreteHals;
-    void throwBadId(std::string id){
-      std::string msg = "The id ";
-      msg += id;
-      msg += " isn't supported";
-      throw InvalidArgumentException(msg);
-    }
-
-public:
-  UpdateInstallHalImpl() = default;
-  virtual ~UpdateInstallHalImpl() = default;
-
-  virtual std::vector<std::string> getSupportedIds(){
-    std::vector<std::string> ids;
-    for( auto& [id, hal] : mConcreteHals ){
-      ids.push_back(id);
-    }
-    return ids;
-  }
-
-  virtual std::map<std::string, std::string> getMetaDataById(std::string id){
-    if( mConcreteHals.contains(id) && mConcreteHals[id] ){
-      return mConcreteHals[id]->getMetaDataById(id);
-    }
-    return std::map<std::string, std::string>({});
-  }
-
-  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion){
-    std::shared_ptr<IUpdateSession> result;
-    if( mConcreteHals.contains(id) && mConcreteHals[id] ){
-      result = std::make_shared<UpdateInstallHalImpl::UpdateSessionImpl>( id, 0, completion, mConcreteHals[id] );
-    } else {
-      throwBadId(id);
-    }
-    return result;
-  }
-
-  virtual void validate(std::string id, COMPLETION_CALLBACK completion){
-    if( mConcreteHals.contains(id) && mConcreteHals[id] ){
-      mConcreteHals[id]->validate(id, completion);
-    } else {
-      completion(id, true);
-      throwBadId(id);
-    }
-  }
-
-  virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion){
-    if( mConcreteHals.contains(id) && mConcreteHals[id] ){
-      mConcreteHals[id]->activateForNext(id, completion);
-    } else {
-      completion(id, true);
-      throwBadId(id);
-    }
-  }
-
-  virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion){
-    if( mConcreteHals.contains(id) && mConcreteHals[id] ){
-      mConcreteHals[id]->restartAndWaitToBoot(id, completion);
-    } else {
-      completion(id, true);
-      throwBadId(id);
-    }
-  }
-};
+#include "Updater.hpp"
 
 
 class MockConstants
@@ -282,6 +38,8 @@ public:
   constexpr static int DUMMY_SIZE = 1024*1024;
 };
 
+
+// --- Mock impl. of primitive updater (impl. of IConcreteUpdateHal)
 class ConcreteUpdateHalMockImpl : public IConcreteUpdateHal
 {
 protected:
@@ -403,6 +161,7 @@ public:
 
 
 
+// --- Mock impl. of HAL (based on UpdateInstallHalImpl)
 class UpdateInstallHalMockImpl : public UpdateInstallHalImpl
 {
 protected:
@@ -445,19 +204,14 @@ public:
 };
 
 
-class UpdateInstallHalFactory
-{
-protected:
-  static std::shared_ptr<IUpdateInstallHal> mInstance;
 
-public:
-  static std::shared_ptr<IUpdateInstallHal> getInstance(){
-    if(!mInstance){
-      mInstance = std::make_shared<UpdateInstallHalMockImpl>();
-    }
-    return mInstance;
+std::shared_ptr<IUpdateInstallHal> UpdateInstallHalFactory::getInstance()
+{
+  if(!mInstance){
+    mInstance = std::make_shared<UpdateInstallHalMockImpl>();
   }
-};
+  return mInstance;
+}
 
 std::shared_ptr<IUpdateInstallHal> UpdateInstallHalFactory::mInstance;
 
