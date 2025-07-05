@@ -136,6 +136,12 @@ public:
 //           A-side(current) is written if B-side isn't suppoted.
 class IUpdateSession {
 public:
+  enum UpdateType {
+    FULL,
+    DELTA,
+  };
+
+public:
   virtual bool write(std::vector<uint8_t> chunk) = 0;
   virtual float getProgressPercent() = 0;
 
@@ -148,7 +154,7 @@ class IUpdateStartSession
 {
 public:
   // create session to write the new firmware image
-  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, IUpdateCore::COMPLETION_CALLBACK completion) = 0;
+  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, IUpdateCore::COMPLETION_CALLBACK completion, IUpdateSession::UpdateType type = IUpdateSession::UpdateType::FULL) = 0;
 };
 
 
@@ -179,9 +185,23 @@ protected:
   const IUpdateCore::COMPLETION_CALLBACK mCompletion;
   bool mIsCompleted;
   std::shared_ptr<IConcreteUpdateHal> mConcreteHal;
+  UpdateType mType;
 
 public:
-  UpdateSessionImpl(const std::string id, const int nSize, const IUpdateCore::COMPLETION_CALLBACK completion, std::shared_ptr<IConcreteUpdateHal> pConcreteHal = nullptr):mId(id),mMaxSize(nSize), mWrittenSize(0), mCompletion(completion), mIsCompleted(false), mConcreteHal(pConcreteHal)
+  UpdateSessionImpl(
+    const std::string id, 
+    const int nSize, 
+    const IUpdateCore::COMPLETION_CALLBACK completion, 
+    std::shared_ptr<IConcreteUpdateHal> pConcreteHal = nullptr, 
+    IUpdateSession::UpdateType type = IUpdateSession::UpdateType::FULL )
+    : 
+    mId(id),
+    mMaxSize(nSize), 
+    mWrittenSize(0), 
+    mCompletion(completion), 
+    mIsCompleted(false), 
+    mConcreteHal(pConcreteHal),
+    mType(type)
   {
   }
   virtual ~UpdateSessionImpl(){};
@@ -248,10 +268,10 @@ public:
     return std::map<std::string, std::string>({});
   }
 
-  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, IUpdateCore::COMPLETION_CALLBACK completion){
+  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, IUpdateCore::COMPLETION_CALLBACK completion, IUpdateSession::UpdateType type = IUpdateSession::UpdateType::FULL){
     std::shared_ptr<IUpdateSession> result;
     if( mConcreteHals.contains(id) && mConcreteHals[id] ){
-      result = std::make_shared<UpdateSessionImpl>( id, 0, completion, mConcreteHals[id] );
+      result = std::make_shared<UpdateSessionImpl>( id, 0, completion, mConcreteHals[id], type );
     } else {
       throwBadId(id);
     }

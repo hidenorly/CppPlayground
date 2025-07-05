@@ -149,9 +149,9 @@ public:
     return result;
   }
 
-  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, IUpdateCore::COMPLETION_CALLBACK completion){
+  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, IUpdateCore::COMPLETION_CALLBACK completion = nullptr, IUpdateSession::UpdateType type = IUpdateSession::UpdateType::FULL){
     if( mDummyData.contains(id) ){
-      return std::make_shared<UpdateSessionImpl>( id, MockConstants::DUMMY_SIZE, completion );
+      return std::make_shared<UpdateSessionImpl>( id, MockConstants::DUMMY_SIZE, completion, nullptr, type );
     } else {
       throwBadId(id);
     }
@@ -198,8 +198,8 @@ public:
   }
 
 
-  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion){
-    return mMockImpl->startUpdateSession(id, completion);
+  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion, IUpdateSession::UpdateType type = IUpdateSession::UpdateType::FULL){
+    return mMockImpl->startUpdateSession(id, completion, type);
   }
 };
 
