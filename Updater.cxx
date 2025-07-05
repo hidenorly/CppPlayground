@@ -44,7 +44,7 @@ class ConcreteUpdateHalMockImpl : public IConcreteUpdateHal
 {
 protected:
   std::map<std::string, std::map<std::string, std::string>> mDummyData;
-  std::map<std::string, std::shared_ptr<IUpdateInstallHal::IUpdateSession>> mSessions;
+  std::map<std::string, std::shared_ptr<IUpdateSession>> mSessions;
 
   void setUpDummyData(){
     std::map<std::string, std::string> dummyMeta;
@@ -149,9 +149,9 @@ public:
     return result;
   }
 
-  virtual std::shared_ptr<IUpdateInstallHal::IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion){
+  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, IUpdateCore::COMPLETION_CALLBACK completion){
     if( mDummyData.contains(id) ){
-      return std::make_shared<UpdateInstallHalImpl::UpdateSessionImpl>( id, MockConstants::DUMMY_SIZE, completion );
+      return std::make_shared<UpdateSessionImpl>( id, MockConstants::DUMMY_SIZE, completion );
     } else {
       throwBadId(id);
     }
@@ -165,7 +165,7 @@ public:
 class UpdateInstallHalMockImpl : public UpdateInstallHalImpl
 {
 protected:
-  std::shared_ptr<ConcreteUpdateHalMockImpl> mMockImpl;
+  std::shared_ptr<IConcreteUpdateHal> mMockImpl;
 
 public:
   UpdateInstallHalMockImpl(){
@@ -224,7 +224,7 @@ int main(int argc, char** argv) {
     std::cout << id << std::endl;
   }
 
-  std::map<std::string, std::shared_ptr<IUpdateInstallHal::IUpdateSession>> sessions;
+  std::map<std::string, std::shared_ptr<IUpdateSession>> sessions;
 
   // completion handler for restart the subsystem to apply immediately
   IUpdateInstallHal::COMPLETION_CALLBACK restartCompletion = [&](std::string id, bool isSuccessfullyDone){

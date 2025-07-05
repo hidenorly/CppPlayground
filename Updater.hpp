@@ -131,89 +131,95 @@ public:
   virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion) = 0;
 };
 
+// session to write the new image.
+// Note that B-side(next-side) is written if supported.
+//           A-side(current) is written if B-side isn't suppoted.
+class IUpdateSession {
+public:
+  virtual bool write(std::vector<uint8_t> chunk) = 0;
+  virtual float getProgressPercent() = 0;
 
-// --- interface definition : IUpdateInstallHal with IUpdateSession for the hal user ---
-class IUpdateInstallHal : public IUpdateCore
+  // cancel might be failed if B-side isn't supported
+  virtual bool cancel() = 0;
+};
+
+// Interface for Create session
+class IUpdateStartSession
 {
 public:
-  // session to write the new image.
-  // Note that B-side(next-side) is written if supported.
-  //           A-side(current) is written if B-side isn't suppoted.
-  class IUpdateSession {
-  public:
-    virtual bool write(std::vector<uint8_t> chunk) = 0;
-    virtual float getProgressPercent() = 0;
-
-    // cancel might be failed if B-side isn't supported
-    virtual bool cancel() = 0;
-  };
-
   // create session to write the new firmware image
-  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion) = 0;
+  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, IUpdateCore::COMPLETION_CALLBACK completion) = 0;
+};
+
+
+// --- interface definition : IUpdateInstallHal with IUpdateSession for the hal user ---
+class IUpdateInstallHal : public IUpdateCore, public IUpdateStartSession
+{
 };
 
 // --- interface definition : IConcreteUpdateHal for primitive updater impl. ---
-class IConcreteUpdateHal : public IUpdateCore
+class IConcreteUpdateHal : public IUpdateCore, public IUpdateStartSession
 {
 public:
-    virtual bool write(std::string id, std::vector<uint8_t> chunk) = 0;
-    virtual float getProgressPercent(std::string id) = 0;
+  virtual bool write(std::string id, std::vector<uint8_t> chunk) = 0;
+  virtual float getProgressPercent(std::string id) = 0;
 
-    // cancel might be failed if B-side isn't supported
-    virtual bool cancel(std::string id) = 0;
+  // cancel might be failed if B-side isn't supported
+  virtual bool cancel(std::string id) = 0;
 };
+
+
+// UpdateSession Impl
+class UpdateSessionImpl : public IUpdateSession
+{
+protected:
+  const int mMaxSize;
+  int mWrittenSize;
+  const std::string mId;
+  const IUpdateCore::COMPLETION_CALLBACK mCompletion;
+  bool mIsCompleted;
+  std::shared_ptr<IConcreteUpdateHal> mConcreteHal;
+
+public:
+  UpdateSessionImpl(const std::string id, const int nSize, const IUpdateCore::COMPLETION_CALLBACK completion, std::shared_ptr<IConcreteUpdateHal> pConcreteHal = nullptr):mId(id),mMaxSize(nSize), mWrittenSize(0), mCompletion(completion), mIsCompleted(false), mConcreteHal(pConcreteHal)
+  {
+  }
+  virtual ~UpdateSessionImpl(){};
+
+  virtual bool write(std::vector<uint8_t> chunk){
+    mWrittenSize += chunk.size();
+    bool result = mWrittenSize < mMaxSize;
+    if( !result && mCompletion ){
+      if( !mIsCompleted ){
+        mCompletion(mId, !result);
+        mIsCompleted = true;
+      } else {
+        throw IllegalInvocationException("Already done to update");
+      }
+    }
+    return result;
+  }
+
+  virtual float getProgressPercent(){
+    float progressPercent = (float)mWrittenSize/(float)mMaxSize*100.0f;
+    if( progressPercent> 100.0f ){
+      return 100.0f;
+    }
+    return progressPercent;
+  }
+
+  virtual bool cancel(){
+    if( mIsCompleted ) return false;
+    mWrittenSize = 0;
+    return true;
+  }
+};
+
 
 // --- default impl. of IUpdateInstallHal ---
 //     Note that this delegates to instance of IConcreteUpdateHal
 class UpdateInstallHalImpl : public IUpdateInstallHal
 {
-public:
-  // UpdateSession Impl
-  class UpdateSessionImpl : public IUpdateInstallHal::IUpdateSession
-  {
-  protected:
-    const int mMaxSize;
-    int mWrittenSize;
-    const std::string mId;
-    const COMPLETION_CALLBACK mCompletion;
-    bool mIsCompleted;
-    std::shared_ptr<IConcreteUpdateHal> mConcreteHal;
-
-  public:
-    UpdateSessionImpl(const std::string id, const int nSize, const COMPLETION_CALLBACK completion, std::shared_ptr<IConcreteUpdateHal> pConcreteHal = nullptr):mId(id),mMaxSize(nSize), mWrittenSize(0), mCompletion(completion), mIsCompleted(false), mConcreteHal(pConcreteHal)
-    {
-    }
-    virtual ~UpdateSessionImpl(){};
-
-    virtual bool write(std::vector<uint8_t> chunk){
-      mWrittenSize += chunk.size();
-      bool result = mWrittenSize < mMaxSize;
-      if( !result && mCompletion ){
-        if( !mIsCompleted ){
-          mCompletion(mId, !result);
-          mIsCompleted = true;
-        } else {
-          throw IllegalInvocationException("Already done to update");
-        }
-      }
-      return result;
-    }
-
-    virtual float getProgressPercent(){
-      float progressPercent = (float)mWrittenSize/(float)mMaxSize*100.0f;
-      if( progressPercent> 100.0f ){
-        return 100.0f;
-      }
-      return progressPercent;
-    }
-
-    virtual bool cancel(){
-      if( mIsCompleted ) return false;
-      mWrittenSize = 0;
-      return true;
-    }
-  };
-
 protected:
     std::map<std::string, std::shared_ptr<IConcreteUpdateHal>> mConcreteHals;
     void throwBadId(std::string id){
@@ -242,17 +248,17 @@ public:
     return std::map<std::string, std::string>({});
   }
 
-  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion){
+  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, IUpdateCore::COMPLETION_CALLBACK completion){
     std::shared_ptr<IUpdateSession> result;
     if( mConcreteHals.contains(id) && mConcreteHals[id] ){
-      result = std::make_shared<UpdateInstallHalImpl::UpdateSessionImpl>( id, 0, completion, mConcreteHals[id] );
+      result = std::make_shared<UpdateSessionImpl>( id, 0, completion, mConcreteHals[id] );
     } else {
       throwBadId(id);
     }
     return result;
   }
 
-  virtual void validate(std::string id, COMPLETION_CALLBACK completion){
+  virtual void validate(std::string id, IUpdateCore::COMPLETION_CALLBACK completion){
     if( mConcreteHals.contains(id) && mConcreteHals[id] ){
       mConcreteHals[id]->validate(id, completion);
     } else {
@@ -261,7 +267,7 @@ public:
     }
   }
 
-  virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion){
+  virtual void activateForNext(std::string id, IUpdateCore::COMPLETION_CALLBACK completion){
     if( mConcreteHals.contains(id) && mConcreteHals[id] ){
       mConcreteHals[id]->activateForNext(id, completion);
     } else {
@@ -270,7 +276,7 @@ public:
     }
   }
 
-  virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion){
+  virtual void restartAndWaitToBoot(std::string id, IUpdateCore::COMPLETION_CALLBACK completion){
     if( mConcreteHals.contains(id) && mConcreteHals[id] ){
       mConcreteHals[id]->restartAndWaitToBoot(id, completion);
     } else {
