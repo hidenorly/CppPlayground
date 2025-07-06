@@ -124,6 +124,12 @@ public:
   }
 
   // --- for session
+  virtual bool canStartUpdateSession(std::string id, IUpdateSession::UpdateType type = IUpdateSession::UpdateType::FULL){
+
+    // this "mock" only allows FULL update
+    return (type == IUpdateSession::UpdateType::FULL);
+  }
+
   virtual bool write(std::string id, std::vector<uint8_t> chunk){
     bool result = false;
     if( mSessions.contains(id) && mSessions[id] ){

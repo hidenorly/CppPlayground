@@ -167,6 +167,10 @@ class IUpdateInstallHal : public IUpdateCore, public IUpdateStartSession
 class IConcreteUpdateHal : public IUpdateCore, public IUpdateStartSession
 {
 public:
+  virtual bool canStartUpdateSession(std::string id, IUpdateSession::UpdateType type = IUpdateSession::UpdateType::FULL){
+    return true;
+  }
+
   virtual bool write(std::string id, std::vector<uint8_t> chunk) = 0;
   virtual float getProgressPercent(std::string id) = 0;
 
@@ -271,7 +275,15 @@ public:
   virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, IUpdateCore::COMPLETION_CALLBACK completion, IUpdateSession::UpdateType type = IUpdateSession::UpdateType::FULL){
     std::shared_ptr<IUpdateSession> result;
     if( mConcreteHals.contains(id) && mConcreteHals[id] ){
-      result = std::make_shared<UpdateSessionImpl>( id, 0, completion, mConcreteHals[id], type );
+      if( mConcreteHals[id]->canStartUpdateSession(id, type) ){
+        result = std::make_shared<UpdateSessionImpl>( id, 0, completion, mConcreteHals[id], type );
+      } else {
+        std::string msg = "The id ";
+        msg += id;
+        msg += " doesn't support on ";
+        msg += ( (type == IUpdateSession::UpdateType::FULL) ? "FULL" : "DELTA" );
+        throw IllegalStateException(msg);
+      }
     } else {
       throwBadId(id);
     }
