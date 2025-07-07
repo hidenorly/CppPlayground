@@ -165,47 +165,111 @@ public:
   }
 };
 
+class ConcreteUpdateHalMockImpl2 : public ConcreteUpdateHalMockImpl
+{
+protected:
+  void setUpDummyData(){
+    std::map<std::string, std::string> dummyMeta;
+    dummyMeta[META_VERSION] = "1111";
+    dummyMeta[META_HASH] = "deadbeafdeadbeaf";
+
+    mDummyData["adc_system"] = dummyMeta;
+    mDummyData["adc_vendor"] = dummyMeta;
+    mDummyData["adc_product"] = dummyMeta;
+    mDummyData["adc_oem"] = dummyMeta;
+    mDummyData["adcodm"] = dummyMeta;
+  }
+
+public:
+  ConcreteUpdateHalMockImpl2() : ConcreteUpdateHalMockImpl(){
+  }
+  virtual ~ConcreteUpdateHalMockImpl2() = default;
+};
 
 
 // --- Mock impl. of HAL (based on UpdateInstallHalImpl)
 class UpdateInstallHalMockImpl : public UpdateInstallHalImpl
 {
 protected:
-  std::shared_ptr<IConcreteUpdateHal> mMockImpl;
+  std::vector<std::shared_ptr<IConcreteUpdateHal>> mMockImpls;
+  std::map<std::string, std::shared_ptr<IConcreteUpdateHal>> mMockIdImpls;
+
+
+  void throwBadId(std::string id){
+    std::string msg = "The id ";
+    msg += id;
+    msg += " isn't supported";
+    throw InvalidArgumentException(msg);
+  }
 
 public:
   UpdateInstallHalMockImpl(){
-    mMockImpl = std::make_shared<ConcreteUpdateHalMockImpl>();
+    mMockImpls.push_back( std::make_shared<ConcreteUpdateHalMockImpl>() );
+    mMockImpls.push_back( std::make_shared<ConcreteUpdateHalMockImpl2>() );
+
+    for( auto& impl : mMockImpls ){
+      auto ids = impl->getSupportedIds();
+      for( auto& id : ids ){
+        mMockIdImpls[ id ] = impl;
+      }
+    }
   }
 
   virtual ~UpdateInstallHalMockImpl() = default;
 
   virtual std::vector<std::string> getSupportedIds(){
-    return mMockImpl->getSupportedIds();
+    std::vector<std::string> ids;
+    for( auto& [id, impl] : mMockIdImpls ){
+      ids.push_back( id );
+    }
+    return ids;
   }
 
   virtual std::map<std::string, std::string> getMetaDataById(std::string id){
-    return mMockImpl->getMetaDataById(id);
+    std::map<std::string, std::string> metadata;
+    if( mMockIdImpls.contains(id) ){
+      return mMockIdImpls[id]->getMetaDataById(id);
+    } else {
+      throwBadId(id);
+    }
+    return metadata;
   }
 
   // validate the written image
   virtual void validate(std::string id, COMPLETION_CALLBACK completion){
-    return mMockImpl->validate(id, completion);
+    if( mMockIdImpls.contains(id) ){
+      return mMockIdImpls[id]->validate(id, completion);
+    } else {
+      throwBadId(id);
+    }
   }
 
   // Set Active for next (the written firmware will be applied without invoking this if the subsystem doesn't support A/B)
   virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion){
-    return mMockImpl->activateForNext(id, completion);
+    if( mMockIdImpls.contains(id) ){
+      return mMockIdImpls[id]->activateForNext(id, completion);
+    } else {
+      throwBadId(id);
+    }
   }
 
   // optional method. If you'd like to apply immediately and if the subsystem support runtime reboot.
   virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion){
-    return mMockImpl->restartAndWaitToBoot(id, completion);
+    if( mMockIdImpls.contains(id) ){
+      return mMockIdImpls[id]->restartAndWaitToBoot(id, completion);
+    } else {
+      throwBadId(id);
+    }
   }
 
 
   virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion, IUpdateSession::UpdateType type = IUpdateSession::UpdateType::FULL){
-    return mMockImpl->startUpdateSession(id, completion, type);
+    if( mMockIdImpls.contains(id) ){
+      return mMockIdImpls[id]->startUpdateSession(id, completion, type);
+    } else {
+      throwBadId(id);
+    }
+    return nullptr;
   }
 };
 
