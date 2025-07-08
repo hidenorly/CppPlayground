@@ -46,7 +46,7 @@ protected:
   std::map<std::string, std::map<std::string, std::string>> mDummyData;
   std::map<std::string, std::shared_ptr<IUpdateSession>> mSessions;
 
-  void setUpDummyData(){
+  virtual void setUpDummyData(){
     std::map<std::string, std::string> dummyMeta;
     dummyMeta[META_VERSION] = "0000";
     dummyMeta[META_HASH] = "0123456789abcdef";
@@ -168,7 +168,7 @@ public:
 class ConcreteUpdateHalMockImpl2 : public ConcreteUpdateHalMockImpl
 {
 protected:
-  void setUpDummyData(){
+  virtual void setUpDummyData(){
     std::map<std::string, std::string> dummyMeta;
     dummyMeta[META_VERSION] = "1111";
     dummyMeta[META_HASH] = "deadbeafdeadbeaf";
@@ -181,7 +181,8 @@ protected:
   }
 
 public:
-  ConcreteUpdateHalMockImpl2() : ConcreteUpdateHalMockImpl(){
+  ConcreteUpdateHalMockImpl2() {
+    setUpDummyData();
   }
   virtual ~ConcreteUpdateHalMockImpl2() = default;
 };
