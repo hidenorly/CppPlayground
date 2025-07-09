@@ -63,14 +63,6 @@ protected:
     mDummyData["mcu_1"] = dummyMeta2;
   }
 
-  void throwBadId(std::string id){
-    std::string msg = "The id ";
-    msg += id;
-    msg += " isn't supported";
-    throw InvalidArgumentException(msg);
-  }
-
-
 public:
   ConcreteUpdateHalMockImpl(){
     setUpDummyData();
@@ -194,14 +186,6 @@ class UpdateInstallHalMockImpl : public UpdateInstallHalImpl
 protected:
   std::vector<std::shared_ptr<IConcreteUpdateHal>> mMockImpls;
   std::map<std::string, std::shared_ptr<IConcreteUpdateHal>> mMockIdImpls;
-
-
-  void throwBadId(std::string id){
-    std::string msg = "The id ";
-    msg += id;
-    msg += " isn't supported";
-    throw InvalidArgumentException(msg);
-  }
 
 public:
   UpdateInstallHalMockImpl(){

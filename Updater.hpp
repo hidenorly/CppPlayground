@@ -129,6 +129,14 @@ public:
 
   // optional method. If you'd like to apply immediately and if the subsystem support runtime reboot.
   virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion) = 0;
+
+protected:
+  void throwBadId(std::string id){
+    std::string msg = "The id ";
+    msg += id;
+    msg += " isn't supported";
+    throw InvalidArgumentException(msg);
+  }
 };
 
 // session to write the new image.
@@ -164,7 +172,7 @@ class IUpdateInstallHal : public IUpdateCore, public IUpdateStartSession
 };
 
 // --- interface definition : IConcreteUpdateHal for primitive updater impl. ---
-class IConcreteUpdateHal : public IUpdateCore, public IUpdateStartSession
+class IConcreteUpdateHal : public IUpdateInstallHal
 {
 public:
   virtual bool canStartUpdateSession(std::string id, IUpdateSession::UpdateType type = IUpdateSession::UpdateType::FULL){
@@ -246,12 +254,6 @@ class UpdateInstallHalImpl : public IUpdateInstallHal
 {
 protected:
     std::map<std::string, std::shared_ptr<IConcreteUpdateHal>> mConcreteHals;
-    void throwBadId(std::string id){
-      std::string msg = "The id ";
-      msg += id;
-      msg += " isn't supported";
-      throw InvalidArgumentException(msg);
-    }
 
 public:
   UpdateInstallHalImpl() = default;
