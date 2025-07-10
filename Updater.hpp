@@ -131,11 +131,15 @@ public:
   virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion) = 0;
 
 protected:
-  void throwBadId(std::string id){
+  std::string createMessageId(std::string id){
     std::string msg = "The id ";
     msg += id;
     msg += " isn't supported";
-    throw InvalidArgumentException(msg);
+    return msg;
+  }
+
+  void throwBadId(std::string id){
+    throw InvalidArgumentException( createMessageId(id) );
   }
 };
 
@@ -280,9 +284,8 @@ public:
       if( mConcreteHals[id]->canStartUpdateSession(id, type) ){
         result = std::make_shared<UpdateSessionImpl>( id, 0, completion, mConcreteHals[id], type );
       } else {
-        std::string msg = "The id ";
-        msg += id;
-        msg += " doesn't support on ";
+        std::string msg = createMessageId(id);
+        msg += " on ";
         msg += ( (type == IUpdateSession::UpdateType::FULL) ? "FULL" : "DELTA" );
         throw IllegalStateException(msg);
       }
