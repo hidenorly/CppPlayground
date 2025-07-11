@@ -335,3 +335,31 @@ public:
 
 
 
+#if USE_PLUGIN
+// git clone https://github.com/hidenorly/plugin-manager.git
+#include "../plugin-manager/include/PlugInManager.hpp"
+
+class UpdaterPlugInBase : public IPlugIn, public IConcreteUpdateHal
+{
+public:
+    UpdaterPlugInBase(){};
+    virtual ~UpdaterPlugInBase(){};
+
+    /* @desc initialize at loading the  plug-in shared object such as .so */
+    virtual void onLoad(void){};
+    /* @desc uninitialize at unloading the  plug-in shared object such as .so */
+    virtual void onUnload(void){};
+    /* @desc report your  plug-in's unique id
+        @return unique plug-in id. may use uuid. */
+    virtual std::string getId(void){return "nothing";};
+    /* @desc report plugin type
+     @return plug-in type. */
+      virtual std::string getType(void){ return "UpdaterPlugInBase"; };
+    /* @desc this is expected to use by strategy
+        @return new YourConcreteClass()'s instanciated result */
+    virtual IPlugIn* newInstance(void) = 0;
+    virtual std::string toString(void){ return "NoPlugIn"; };
+};
+
+typedef TPlugInManager<UpdaterPlugInBase> UpdaterPlugInManager;
+#endif // USE_PLUGIN
