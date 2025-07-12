@@ -29,6 +29,7 @@
 #include <sstream>
 #include <cxxabi.h>
 
+#define USE_PLUGIN 1
 #include "Updater.hpp"
 
 
@@ -39,6 +40,8 @@ public:
 };
 
 
+#if USE_PLUGIN
+#else // USE_PLUGIN
 // --- Mock impl. of primitive updater (impl. of IConcreteUpdateHal)
 class ConcreteUpdateHalMockImpl : public IConcreteUpdateHal
 {
@@ -178,7 +181,7 @@ public:
   }
   virtual ~ConcreteUpdateHalMockImpl2() = default;
 };
-
+#endif // USE_PLUGIN
 
 // --- Mock impl. of HAL (based on UpdateInstallHalImpl)
 class UpdateInstallHalMockImpl : public UpdateInstallHalImpl
@@ -189,8 +192,11 @@ protected:
 
 public:
   UpdateInstallHalMockImpl(){
+#if USE_PLUGIN
+#else // USE_PLUGIN
     mMockImpls.push_back( std::make_shared<ConcreteUpdateHalMockImpl>() );
     mMockImpls.push_back( std::make_shared<ConcreteUpdateHalMockImpl2>() );
+#endif // USE_PLUGIN
 
     for( auto& impl : mMockImpls ){
       auto ids = impl->getSupportedIds();
@@ -334,8 +340,10 @@ int main(int argc, char** argv) {
     break;
   }
   try{
+    if( !id_for_test.empty() ){
       std::vector<uint8_t> chunk(MockConstants::DUMMY_SIZE/4);
       sessions[id_for_test]->write(chunk);
+    }
   } catch (BaseException& ex){
     ex.dump();
   }
