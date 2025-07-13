@@ -14,8 +14,6 @@
    limitations under the License.
 */
 
-// clang++ -std=c++20 Updater.cxx 
-
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -31,6 +29,16 @@
 
 #define USE_PLUGIN 1
 #include "Updater.hpp"
+
+// --- for USE_PLUGIN 0
+// clang++ -std=c++20 Updater.cxx 
+// --- for USE_PLUGIN 1
+// clang++ -std=c++20 Updater.cxx -I ../plugin-manager/include 
+
+#if USE_PLUGIN
+// git clone https://github.com/hidenorly/plugin-manager.git
+#include "../plugin-manager/src/PlugInManager.cpp"
+#endif // USE_PLUGIN
 
 
 class MockConstants
@@ -183,16 +191,35 @@ public:
 };
 #endif // USE_PLUGIN
 
+
 // --- Mock impl. of HAL (based on UpdateInstallHalImpl)
 class UpdateInstallHalMockImpl : public UpdateInstallHalImpl
 {
 protected:
   std::vector<std::shared_ptr<IConcreteUpdateHal>> mMockImpls;
   std::map<std::string, std::shared_ptr<IConcreteUpdateHal>> mMockIdImpls;
+#if USE_PLUGIN
+    std::shared_ptr<UpdaterPlugInManager> mpManager;
+#endif // USE_PLUGIN
+
 
 public:
   UpdateInstallHalMockImpl(){
 #if USE_PLUGIN
+    UpdaterPlugInManager::setPlugInPath(".");
+    std::weak_ptr<UpdaterPlugInManager> pWeakManager = UpdaterPlugInManager::getManager();
+    mpManager = pWeakManager.lock();
+    if( mpManager ){
+      mpManager->initialize();
+
+      std::vector<std::string> plugInIds = mpManager->getPlugInIds();
+      for(auto& aPlugInId : plugInIds){
+        std::shared_ptr<UpdaterPlugInBase> thePlugIn = UpdaterPlugInManager::newInstanceById( aPlugInId );
+        if( thePlugIn ){
+          mMockImpls.push_back( thePlugIn );
+        }
+      }
+    }
 #else // USE_PLUGIN
     mMockImpls.push_back( std::make_shared<ConcreteUpdateHalMockImpl>() );
     mMockImpls.push_back( std::make_shared<ConcreteUpdateHalMockImpl2>() );
@@ -206,7 +233,13 @@ public:
     }
   }
 
-  virtual ~UpdateInstallHalMockImpl() = default;
+  virtual ~UpdateInstallHalMockImpl(){
+#if USE_PLUGIN
+    mpManager->terminate();
+    mpManager.reset();
+#endif //USE_PLUGIN
+
+  }
 
   virtual std::vector<std::string> getSupportedIds(){
     std::vector<std::string> ids;
