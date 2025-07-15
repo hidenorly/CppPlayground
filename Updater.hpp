@@ -359,6 +359,9 @@ public:
         @return new YourConcreteClass()'s instanciated result */
     virtual IPlugIn* newInstance(void) = 0;
     virtual std::string toString(void){ return "NoPlugIn"; };
+    /* @desc capability report if this plug-in can support this device
+       @return true if current running device matches this plug-in */
+    virtual bool canHandle(void){ return true; };
 };
 
 typedef TPlugInManager<UpdaterPlugInBase> UpdaterPlugInManager;

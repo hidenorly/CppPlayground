@@ -215,7 +215,7 @@ public:
       std::vector<std::string> plugInIds = mpManager->getPlugInIds();
       for(auto& aPlugInId : plugInIds){
         std::shared_ptr<UpdaterPlugInBase> thePlugIn = UpdaterPlugInManager::newInstanceById( aPlugInId );
-        if( thePlugIn ){
+        if( thePlugIn && thePlugIn->canHandle() ){
           mMockImpls.push_back( thePlugIn );
         }
       }
@@ -234,11 +234,7 @@ public:
   }
 
   virtual ~UpdateInstallHalMockImpl(){
-#if USE_PLUGIN
     mpManager->terminate();
-    mpManager.reset();
-#endif //USE_PLUGIN
-
   }
 
   virtual std::vector<std::string> getSupportedIds(){
