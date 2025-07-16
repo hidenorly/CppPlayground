@@ -252,16 +252,76 @@ public:
 };
 
 
+#if USE_PLUGIN
+// git clone https://github.com/hidenorly/plugin-manager.git
+#include "../plugin-manager/include/PlugInManager.hpp"
+
+class UpdaterPlugInBase : public IPlugIn, public IConcreteUpdateHal
+{
+public:
+    UpdaterPlugInBase(){};
+    virtual ~UpdaterPlugInBase(){};
+
+    /* @desc initialize at loading the  plug-in shared object such as .so */
+    virtual void onLoad(void){};
+    /* @desc uninitialize at unloading the  plug-in shared object such as .so */
+    virtual void onUnload(void){};
+    /* @desc report your  plug-in's unique id
+        @return unique plug-in id. may use uuid. */
+    virtual std::string getId(void){return "nothing";};
+    /* @desc report plugin type
+     @return plug-in type. */
+      virtual std::string getType(void){ return "UpdaterPlugInBase"; };
+    /* @desc this is expected to use by strategy
+        @return new YourConcreteClass()'s instanciated result */
+    virtual IPlugIn* newInstance(void) = 0;
+    virtual std::string toString(void){ return "NoPlugIn"; };
+    /* @desc capability report if this plug-in can support this device
+       @return true if current running device matches this plug-in */
+    virtual bool canHandle(void){ return true; };
+};
+
+typedef TPlugInManager<UpdaterPlugInBase> UpdaterPlugInManager;
+#endif // USE_PLUGIN
+
+
 // --- default impl. of IUpdateInstallHal ---
 //     Note that this delegates to instance of IConcreteUpdateHal
 class UpdateInstallHalImpl : public IUpdateInstallHal
 {
 protected:
     std::map<std::string, std::shared_ptr<IConcreteUpdateHal>> mConcreteHals;
+#if USE_PLUGIN
+    std::shared_ptr<UpdaterPlugInManager> mpManager;
+#endif // USE_PLUGIN
 
 public:
-  UpdateInstallHalImpl() = default;
-  virtual ~UpdateInstallHalImpl() = default;
+  UpdateInstallHalImpl(){
+#if USE_PLUGIN
+    UpdaterPlugInManager::setPlugInPath(".");
+    std::weak_ptr<UpdaterPlugInManager> pWeakManager = UpdaterPlugInManager::getManager();
+    mpManager = pWeakManager.lock();
+    if( mpManager ){
+      mpManager->initialize();
+
+      std::vector<std::string> plugInIds = mpManager->getPlugInIds();
+      for(auto& aPlugInId : plugInIds){
+        std::shared_ptr<UpdaterPlugInBase> thePlugIn = UpdaterPlugInManager::newInstanceById( aPlugInId );
+        if( thePlugIn && thePlugIn->canHandle() ){
+          std::vector<std::string> ids = thePlugIn->getSupportedIds();
+          for(auto& id : ids){
+            mConcreteHals[id] = thePlugIn;
+          }
+        }
+      }
+    }
+#endif // USE_PLUGIN
+  }
+  virtual ~UpdateInstallHalImpl(){
+#if USE_PLUGIN
+    mpManager->terminate();
+#endif // USE_PLUGIN
+  }
 
   virtual std::vector<std::string> getSupportedIds(){
     std::vector<std::string> ids;
@@ -335,34 +395,3 @@ public:
 
 
 
-#if USE_PLUGIN
-// git clone https://github.com/hidenorly/plugin-manager.git
-#include "../plugin-manager/include/PlugInManager.hpp"
-
-class UpdaterPlugInBase : public IPlugIn, public IConcreteUpdateHal
-{
-public:
-    UpdaterPlugInBase(){};
-    virtual ~UpdaterPlugInBase(){};
-
-    /* @desc initialize at loading the  plug-in shared object such as .so */
-    virtual void onLoad(void){};
-    /* @desc uninitialize at unloading the  plug-in shared object such as .so */
-    virtual void onUnload(void){};
-    /* @desc report your  plug-in's unique id
-        @return unique plug-in id. may use uuid. */
-    virtual std::string getId(void){return "nothing";};
-    /* @desc report plugin type
-     @return plug-in type. */
-      virtual std::string getType(void){ return "UpdaterPlugInBase"; };
-    /* @desc this is expected to use by strategy
-        @return new YourConcreteClass()'s instanciated result */
-    virtual IPlugIn* newInstance(void) = 0;
-    virtual std::string toString(void){ return "NoPlugIn"; };
-    /* @desc capability report if this plug-in can support this device
-       @return true if current running device matches this plug-in */
-    virtual bool canHandle(void){ return true; };
-};
-
-typedef TPlugInManager<UpdaterPlugInBase> UpdaterPlugInManager;
-#endif // USE_PLUGIN
