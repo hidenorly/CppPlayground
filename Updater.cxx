@@ -194,80 +194,22 @@ public:
 // --- Mock impl. of HAL (based on UpdateInstallHalImpl)
 class UpdateInstallHalMockImpl : public UpdateInstallHalImpl
 {
-protected:
-  std::vector<std::shared_ptr<IConcreteUpdateHal>> mMockImpls;
-  std::map<std::string, std::shared_ptr<IConcreteUpdateHal>> mMockIdImpls;
-
-
 public:
   UpdateInstallHalMockImpl(){
-    mMockImpls.push_back( std::make_shared<ConcreteUpdateHalMockImpl>() );
-    mMockImpls.push_back( std::make_shared<ConcreteUpdateHalMockImpl2>() );
+    std::vector<std::shared_ptr<IConcreteUpdateHal>> mockImpls;
 
-    for( auto& impl : mMockImpls ){
+    mockImpls.push_back( std::make_shared<ConcreteUpdateHalMockImpl>() );
+    mockImpls.push_back( std::make_shared<ConcreteUpdateHalMockImpl2>() );
+
+    for( auto& impl : mockImpls ){
       auto ids = impl->getSupportedIds();
       for( auto& id : ids ){
-        mMockIdImpls[ id ] = impl;
+        mConcreteHals[id] = impl;
       }
     }
   }
 
   virtual ~UpdateInstallHalMockImpl(){
-  }
-
-  virtual std::vector<std::string> getSupportedIds(){
-    std::vector<std::string> ids;
-    for( auto& [id, impl] : mMockIdImpls ){
-      ids.push_back( id );
-    }
-    return ids;
-  }
-
-  virtual std::map<std::string, std::string> getMetaDataById(std::string id){
-    std::map<std::string, std::string> metadata;
-    if( mMockIdImpls.contains(id) ){
-      return mMockIdImpls[id]->getMetaDataById(id);
-    } else {
-      throwBadId(id);
-    }
-    return metadata;
-  }
-
-  // validate the written image
-  virtual void validate(std::string id, COMPLETION_CALLBACK completion){
-    if( mMockIdImpls.contains(id) ){
-      return mMockIdImpls[id]->validate(id, completion);
-    } else {
-      throwBadId(id);
-    }
-  }
-
-  // Set Active for next (the written firmware will be applied without invoking this if the subsystem doesn't support A/B)
-  virtual void activateForNext(std::string id, COMPLETION_CALLBACK completion){
-    if( mMockIdImpls.contains(id) ){
-      return mMockIdImpls[id]->activateForNext(id, completion);
-    } else {
-      throwBadId(id);
-    }
-  }
-
-  // optional method. If you'd like to apply immediately and if the subsystem support runtime reboot.
-  virtual void restartAndWaitToBoot(std::string id, COMPLETION_CALLBACK completion){
-    if( mMockIdImpls.contains(id) ){
-      return mMockIdImpls[id]->restartAndWaitToBoot(id, completion);
-    } else {
-      throwBadId(id);
-    }
-  }
-
-
-  virtual std::shared_ptr<IUpdateSession> startUpdateSession(std::string id, COMPLETION_CALLBACK completion, IUpdateSession::UpdateType type = IUpdateSession::UpdateType::FULL){
-    if( mMockIdImpls.contains(id) ){
-      return mMockIdImpls[id]->startUpdateSession(id, completion, type);
-    } else {
-      throwBadId(id);
-    }
-    return nullptr;
   }
 };
 #endif // USE_PLUGIN
