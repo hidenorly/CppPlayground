@@ -52,6 +52,18 @@ public:
     mContext = context;
   };
 
+  static std::shared_ptr<StateManager> getInstance(std::shared_ptr<StateContext> context = nullptr){
+
+    if( !context ){
+      context = std::make_shared<StateContext>();
+    }
+
+    std::shared_ptr<StateManager> result = std::make_shared<StateManager>(context);
+    context->stateManager = result;
+
+    return result;
+  }
+
   virtual ~StateManager() = default;
 
   void changeState(std::shared_ptr<IState> nextState){
@@ -122,14 +134,9 @@ public:
 };
 
 
-
-
-
-
 int main() {
   std::shared_ptr<StateContext> context = std::make_shared<StateContext>();
-  std::shared_ptr<StateManager> manager = std::make_shared<StateManager>(context);
-  context->stateManager = manager;
+  std::shared_ptr<StateManager> manager = StateManager::getInstance(context);
   manager->changeState(std::make_shared<State1>());
 }
 
