@@ -44,6 +44,18 @@ public:
     return;
   }
 
+  void remove(std::shared_ptr<Handler<T>> handler) {
+    std::shared_ptr<Handler<T>> curHandler = this->shared_from_this();
+    while( curHandler ){
+      if( curHandler->nextHandler == handler){
+        curHandler->nextHandler = curHandler->nextHandler->nextHandler;
+        return;
+      }
+      curHandler = curHandler->nextHandler;
+    }
+  }
+
+
   void handle(const T& request) {
     if (!process(request) && nextHandler) {
       nextHandler->handle(request);
@@ -109,6 +121,13 @@ int main(int argc, char** argv) {
   head->setNext(handlerB);//addTail(handlerB);
   head->addTail(defaultHandler);
 
+  head->handle("HeaderA_MESSAGE"); // expect to handle by HandlerA
+  head->handle("MESSAGE_HeaderB"); // expect to handle by HandlerB
+  head->handle("HeaderB_MESSAGE"); // expect to handle by DefaultHandler
+  head->handle("hoge"); // expect to handle by DefaultHandler
+
+  std::cout << "\nRemove HandlerB\n";
+  head->remove(handlerB);
   head->handle("HeaderA_MESSAGE"); // expect to handle by HandlerA
   head->handle("MESSAGE_HeaderB"); // expect to handle by HandlerB
   head->handle("HeaderB_MESSAGE"); // expect to handle by DefaultHandler
