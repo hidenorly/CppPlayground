@@ -22,13 +22,26 @@
 #include <optional>
 
 template <typename T>
-class Handler {
+class Handler : public std::enable_shared_from_this<Handler<T>> {
 protected:
   std::shared_ptr<Handler<T>> nextHandler;
 
 public:
   void setNext(std::shared_ptr<Handler<T>> next) {
     nextHandler = next;
+  }
+
+  void addTail(std::shared_ptr<Handler<T>> next) {
+    std::shared_ptr<Handler<T>> curHandler = nextHandler;
+    std::shared_ptr<Handler<T>> prevHandler = this->shared_from_this();
+    while( curHandler ){
+      prevHandler = curHandler;
+      curHandler = curHandler->nextHandler;
+    }
+    if( !curHandler ){
+      prevHandler->nextHandler = next;
+    }
+    return;
   }
 
   void handle(const T& request) {
@@ -49,6 +62,8 @@ typedef std::string Message;
 class HandlerA : public Handler<Message>
 {
 public:
+  HandlerA(){};
+
   virtual bool process(const Message& request){
     if( request.starts_with("HeaderA") ){
       std::cout << "HandlerA:" << request << std::endl;
@@ -62,6 +77,8 @@ public:
 class HandlerB : public Handler<Message>
 {
 public:
+  HandlerB(){};
+
   virtual bool process(const Message& request){
     if( request.ends_with("HeaderB") ){
       std::cout << "HandlerB:" << request << std::endl;
@@ -75,6 +92,8 @@ public:
 class DefaultHandler : public Handler<Message>
 {
 public:
+  DefaultHandler(){};
+
   virtual bool process(const Message& request){
     std::cout << "DefaultHandler:" << request << std::endl;
     return true;
@@ -87,8 +106,8 @@ int main(int argc, char** argv) {
   auto handlerB = std::make_shared<HandlerB>();
   auto defaultHandler = std::make_shared<DefaultHandler>();
 
-  head->setNext(handlerB);
-  handlerB->setNext(defaultHandler);
+  head->setNext(handlerB);//addTail(handlerB);
+  head->addTail(defaultHandler);
 
   head->handle("HeaderA_MESSAGE"); // expect to handle by HandlerA
   head->handle("MESSAGE_HeaderB"); // expect to handle by HandlerB
