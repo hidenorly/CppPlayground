@@ -21,7 +21,8 @@
 #include <memory>
 #include <mutex>
 #include <algorithm>
-#include <cctype> 
+#include <cctype>
+#include <typeindex>
 
 template <typename ContextType>
 class Context
@@ -40,21 +41,20 @@ public:
     FlyWeight() = default;
     virtual ~FlyWeight() = default;
     virtual void operation(std::shared_ptr<Context<ContextType>> context) = 0;
-    static int getHash(){ return 0; };
 };
 
 
 template <typename ContextType>
 class FlyweightFactory {
 protected:
-    std::unordered_map<int, std::shared_ptr<FlyWeight<ContextType>>> mPool;
+    std::unordered_map<std::type_index, std::shared_ptr<FlyWeight<ContextType>>> mPool;
     std::mutex mMutex;
 
 public:
     template <typename T, typename... Args>
     std::shared_ptr<FlyWeight<ContextType>> get(Args&&... args) {
         std::lock_guard lock(mMutex);
-        auto key = T::getHash();
+        std::type_index key(typeid(T));
         auto it = mPool.find(key);
         if (it != mPool.end()){
             return it->second;
@@ -83,8 +83,6 @@ public:
             return std::toupper(c);
         });
     };
-
-    static int getHash(){ return 'A'; };
 };
 
 class OperatorLower : public MyFlyWeight
@@ -97,8 +95,6 @@ public:
             return std::tolower(c);
         });
     };
-
-    static int getHash(){ return 'B'; };
 };
 
 
