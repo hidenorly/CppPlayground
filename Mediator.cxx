@@ -39,7 +39,7 @@ public:
 template<typename T>
 class Mediator {
 public:
-    virtual void notify(std::shared_ptr<T> sender, const std::string& event) = 0;
+    virtual void notify(T* sender, const std::string& event) = 0;
 };
 // ---
 
@@ -50,7 +50,7 @@ public:
 class ComponentA;
 class ComponentB;
 
-class ComponentA : public Component<ComponentA>, public std::enable_shared_from_this<ComponentA> {
+class ComponentA : public Component<ComponentA> {
 public:
     void doA() {
         std::cout << "ComponentA does A.\n";
@@ -62,7 +62,7 @@ public:
     }
 };
 
-class ComponentB : public Component<ComponentB>, public std::enable_shared_from_this<ComponentB> {
+class ComponentB : public Component<ComponentB> {
 public:
     void doB() {
         std::cout << "ComponentB does B.\n";
@@ -91,13 +91,13 @@ public:
         compB->setMediator(shared_from_this());
     }
 
-    void notify(std::shared_ptr<ComponentA> sender, const std::string& event) override {
+    void notify(ComponentA* sender, const std::string& event) override {
         if (event == "A") {
             compB->doY();
         }
     }
 
-    void notify(std::shared_ptr<ComponentB> sender, const std::string& event) override {
+    void notify(ComponentB* sender, const std::string& event) override {
         if (event == "B") {
             compA->doX();
         }
