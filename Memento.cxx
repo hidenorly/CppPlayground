@@ -73,7 +73,6 @@ public:
     }
 };
 
-// 動作例
 int main() {
     Originator<std::string> originator;
     Caretaker<std::string> caretaker;
