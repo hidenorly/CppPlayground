@@ -65,10 +65,28 @@ public:
     }
 };
 
+template <typename Strategy, typename T>
+class StaticContext {
+    Strategy strategy;
+public:
+    void run(const T& data) const {
+        strategy.execute(data);
+    }
+};
+
 int main() {
     // ---- runtime strategy ----
     Context<std::string> ctx(std::make_unique<ConsolePrintStrategy<std::string>>());
     ctx.run("Hello World");
     ctx.setStrategy(std::make_unique<UpperCasePrintStrategy<std::string>>());
     ctx.run("Hello World");
+
+    std::cout << "----\n";
+
+    // ---- compile time strategy ----
+    StaticContext<ConsolePrintStrategy<std::string>, std::string> staticCtx1;
+    staticCtx1.run("Compile Time Strategy");
+
+    StaticContext<UpperCasePrintStrategy<std::string>, std::string> staticCtx2;
+    staticCtx2.run("Compile Time Strategy");
 }
