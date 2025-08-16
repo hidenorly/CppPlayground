@@ -40,23 +40,26 @@ struct IVisitable {
     virtual ~IVisitable() = default;
 };
 
+template <class T>
+struct TVisitable : IVisitable {
+    void accept(Visitor& v) const override {
+        v.visit(static_cast<const T&>(*this));
+    }
+};
 
-struct Circle : IVisitable {
+struct Circle : TVisitable<Circle> {
     double radius;
     Circle(double r) : radius(r) {}
-    void accept(Visitor& v) const override { v.visit(*this); }
 };
 
-struct Rectangle : IVisitable {
+struct Rectangle : TVisitable<Rectangle> {
     double width, height;
     Rectangle(double w, double h) : width(w), height(h) {}
-    void accept(Visitor& v) const override { v.visit(*this); }
 };
 
-struct Triangle : IVisitable {
+struct Triangle : TVisitable<Triangle> {
     double base, height;
     Triangle(double b, double h) : base(b), height(h) {}
-    void accept(Visitor& v) const override { v.visit(*this); }
 };
 
 
