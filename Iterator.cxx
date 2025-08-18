@@ -29,6 +29,8 @@ public:
     virtual ~Iterator() = default;
 };
 
+
+
 // example
 template <typename T>
 class VectorIterator : public Iterator<T> {
@@ -52,14 +54,34 @@ public:
 };
 
 
-// 使用例
-int main() {
-    std::vector<std::string> collection;
-    collection.push_back("a");
-    collection.push_back("b");
-    collection.push_back("c");
+template <typename T>
+class Collection
+{
+protected:
+    std::vector<T> mCollection;
 
-    VectorIterator<std::string> it(collection);
+public:
+    Collection() = default;
+    virtual ~Collection() = default;
+
+    void add(const T& value){
+        mCollection.push_back( value );
+    }
+
+    VectorIterator<T> getIterator(void){
+        return VectorIterator<T>(mCollection);
+    }
+};
+
+
+// example
+int main() {
+    Collection<std::string> collection;
+    collection.add("a");
+    collection.add("b");
+    collection.add("c");
+
+    auto it = collection.getIterator();
     while (it.hasNext()) {
         std::cout << it.getNext() << "\n";
     }
