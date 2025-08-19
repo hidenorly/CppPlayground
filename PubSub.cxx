@@ -73,7 +73,6 @@ public:
     }
 };
 
-// ---- 実行例 ----
 int main() {
     Publisher<std::string> stringPublisher;
     auto sub = std::make_shared<StringSubscriber>();
