@@ -26,19 +26,23 @@
 
 class EventBus {
 protected:
-    struct IHolder {
+    class IHolder {
+    public:
         virtual ~IHolder() = default;
     };
 
     template <typename T>
-    struct Holder : IHolder {
-    public:
-        struct Subscriber {
+    class Holder : public IHolder {
+    protected:
+        class Subscriber {
+        public:
             size_t id;
             std::function<void(const T&)> callback;
+
+            Subscriber(size_t i, std::function<void(const T&)> cb)
+                : id(i), callback(std::move(cb)) {}
         };
 
-    protected:
         std::vector<Subscriber> subscribers;
         size_t nextId = 0;
 
@@ -89,6 +93,7 @@ public:
         getHolder<T>().publish(event);
     }
 };
+
 
 int main() {
     EventBus bus;
