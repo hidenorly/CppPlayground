@@ -55,11 +55,14 @@ class Publisher : public std::enable_shared_from_this<Publisher<T>>
     size_t nextId = 0;
 
 public:
-    std::shared_ptr<SubscriberHandle<T>> subscribe(std::function<void(const T&)> cb) {
+    size_t subscribe(std::function<void(const T&)> cb) {
         subscribers.push_back({nextId, std::move(cb)});
-        std::shared_ptr<SubscriberHandle<T>> result = std::make_shared<SubscriberHandle<T>>(this->shared_from_this(), nextId);
-        nextId++;
-        return result;
+        return nextId++;
+    }
+
+    std::shared_ptr<SubscriberHandle<T>> subscribeAsHandle(std::function<void(const T&)> cb) {
+        auto id = this->subscribe(std::move(cb));
+        return std::make_shared<SubscriberHandle<T>>(this->shared_from_this(), id);
     }
 
     void unsubscribe(size_t id) {
@@ -82,7 +85,7 @@ int main() {
     std::shared_ptr<Publisher<std::string>> stringPublisher = std::make_shared<Publisher<std::string>>();
 
     {
-        auto id = stringPublisher->subscribe(
+        auto id = stringPublisher->subscribeAsHandle(
             [](const std::string& msg) { std::cout << msg << "\n"; }
         );
 
