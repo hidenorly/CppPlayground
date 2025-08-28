@@ -84,15 +84,19 @@ public:
 int main() {
     std::shared_ptr<Publisher<std::string>> stringPublisher = std::make_shared<Publisher<std::string>>();
 
+    auto id = stringPublisher->subscribe(
+            [](const std::string& msg) { std::cout << "#1:" << msg << "\n"; }
+        );
+
     {
-        auto id = stringPublisher->subscribeAsHandle(
-            [](const std::string& msg) { std::cout << msg << "\n"; }
+        auto id2 = stringPublisher->subscribeAsHandle(
+            [](const std::string& msg) { std::cout << "#2:" << msg << "\n"; }
         );
 
         stringPublisher->publish("Hello Pub-Sub with lambdas!");
     }
-    stringPublisher->publish("This should not be published to the id's handler");
 
+    stringPublisher->publish("This should be published to #1 only");
 
     return 0;
 }
