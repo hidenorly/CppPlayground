@@ -78,6 +78,9 @@ protected:
     }
 
 public:
+    EventBus() = default;
+    virtual ~EventBus() = default;
+
     template <typename T>
     size_t subscribe(std::function<void(const T&)> cb) {
         return getHolder<T>().subscribe(std::move(cb));
