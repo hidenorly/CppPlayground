@@ -33,11 +33,11 @@
 // --- for USE_PLUGIN 0
 // clang++ -std=c++20 Updater.cxx 
 // --- for USE_PLUGIN 1
-// clang++ -std=c++20 Updater.cxx -I ../plugin-manager/include
+// clang++ -std=c++20 Updater.cxx -I ../../plugin-manager/include
 
 #if USE_PLUGIN
 // git clone https://github.com/hidenorly/plugin-manager.git
-#include "../plugin-manager/src/PlugInManager.cpp"
+#include "../../plugin-manager/src/PlugInManager.cpp"
 #endif // USE_PLUGIN
 
 

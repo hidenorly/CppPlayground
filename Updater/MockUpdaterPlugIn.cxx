@@ -14,7 +14,7 @@
    limitations under the License.
 */
 
-// clang++ -std=c++20 -flat_namespace -dynamiclib MockUpdaterPlugIn.cxx -ldl -o libmockupdater_plugin.dylib -I ../plugin-manager/include 
+// clang++ -std=c++20 -flat_namespace -dynamiclib MockUpdaterPlugIn.cxx -ldl -o libmockupdater_plugin.dylib -I ../../plugin-manager/include 
 
 #include <iostream>
 #include <vector>
@@ -33,7 +33,7 @@
 #include "Updater.hpp"
 #if USE_PLUGIN
 // git clone https://github.com/hidenorly/plugin-manager.git
-#include "../plugin-manager/src/PlugInManager.cpp"
+#include "../../plugin-manager/src/PlugInManager.cpp"
 #endif // USE_PLUGIN
 
 
