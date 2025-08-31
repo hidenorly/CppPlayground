@@ -21,28 +21,7 @@
 #include <string>
 #include <map>
 
-
-class ServiceBase
-{
-protected:
-  bool mIsEnabled = false;
-
-public:
-  ServiceBase() = default;
-  virtual ~ServiceBase() = default;
-  virtual void setEnabled(bool enabled){
-    // TODO: Actual registration & unregistration
-    mIsEnabled = enabled;
-  }
-  virtual bool getEnabled(){ return mIsEnabled; };
-};
-
-
-class MyInterface
-{
-public:
-  virtual std::string getValue(std::string key) = 0;
-};
+#include "ExampleService.hpp"
 
 class MyService : public ServiceBase, public MyInterface
 {
@@ -58,6 +37,11 @@ public:
   virtual std::string getValue(std::string key){
     return mRegistry.contains(key) ? mRegistry[key] : "";
   }
+
+  virtual void setValue(std::string key, std::string value){
+    mRegistry[key] = value;
+  }
+
 };
 
 int main()
