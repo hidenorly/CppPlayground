@@ -39,7 +39,10 @@ public:
   }
 
   virtual void setValue(std::string key, std::string value){
-    mRegistry[key] = value;
+    if( key.starts_with("ro.") && mRegistry.contains(key) ){
+    } else {
+      mRegistry[key] = value;
+    }
   }
 
 };
@@ -51,6 +54,12 @@ int main()
   if( service.getEnabled() ){
     std::cout << "service enabled" << std::endl;
     std::cout << "ro.serialno=" << service.getValue("ro.serialno") << std::endl;
+    service.setValue("ro.serialno", "override");
+    std::cout << "ro.serialno=" << service.getValue("ro.serialno") << std::endl;
+    std::cout << "ro.build.fingerprint=" << service.getValue("ro.build.fingerprint") << std::endl;
+    service.setValue("ro.build.fingerprint", "writeonece");
+    std::cout << "ro.build.fingerprint=" << service.getValue("ro.build.fingerprint") << std::endl;
+    service.setValue("ro.build.fingerprint", "writeonece2");
     std::cout << "ro.build.fingerprint=" << service.getValue("ro.build.fingerprint") << std::endl;
   }
 
