@@ -21,9 +21,23 @@
 #include <string>
 #include <map>
 
+#include <grpcpp/grpcpp.h>
+#include "build/generated/example.grpc.pb.h"
 #include "ExampleService.hpp"
 
-class MyService : public ServiceBase, public MyInterface
+using grpc::Server;
+using grpc::ServerBuilder;
+using grpc::ServerContext;
+using grpc::Status;
+
+using com::gmail::twitte::harold::ExampleService;
+using com::gmail::twitte::harold::GetValueRequest;
+using com::gmail::twitte::harold::GetValueReply;
+using com::gmail::twitte::harold::SetValueRequest;
+using com::gmail::twitte::harold::SetValueReply;
+
+
+class MyService : public ServiceBase, public MyInterface, public ExampleService::Service
 {
 protected:
   std::map<std::string, std::string> mRegistry;
@@ -34,17 +48,29 @@ public:
   }
   virtual ~MyService() = default;
 
-  virtual std::string getValue(std::string key){
+//protected:
+  virtual std::string getValue(std::string key) override{
     return mRegistry.contains(key) ? mRegistry[key] : "";
   }
 
-  virtual void setValue(std::string key, std::string value){
+  virtual void setValue(std::string key, std::string value) override{
     if( key.starts_with("ro.") && mRegistry.contains(key) ){
     } else {
       mRegistry[key] = value;
     }
   }
 
+public:
+  Status GetValue(ServerContext* context, const GetValueRequest* request, GetValueReply* reply) override {
+    reply->set_value( getValue(request->key()) );
+    return Status::OK;
+  }
+
+  Status SetValue(ServerContext* context, const SetValueRequest* request, SetValueReply* reply) override {
+    setValue( request->key(), request->value() );
+    reply->set_success(true);
+    return Status::OK;
+  }
 };
 
 int main()

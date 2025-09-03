@@ -25,7 +25,7 @@
 class ServiceBase
 {
 protected:
-  bool mIsEnabled = false;
+  std::atomic<bool> mIsEnabled = false;
 
 public:
   ServiceBase() = default;
