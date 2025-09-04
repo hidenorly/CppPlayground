@@ -41,6 +41,7 @@ class MyService : public ServiceBase, public MyInterface, public ExampleService:
 {
 protected:
   std::map<std::string, std::string> mRegistry;
+  std::unique_ptr<Server> mServer;
 
 public:
   MyService(){
@@ -71,12 +72,34 @@ public:
     reply->set_success(true);
     return Status::OK;
   }
+
+  virtual void setEnabled(bool enabled) override {
+    if(!mIsEnabled && enabled){
+      // enabling
+      std::string server_address("0.0.0.0:50051");
+
+      ServerBuilder builder;
+      builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+      builder.RegisterService(this);
+
+      mServer = builder.BuildAndStart();
+      std::cout << "Server listening on " << server_address << std::endl;
+
+      mServer->Wait();
+    } else if ( mIsEnabled && !enabled ){
+      // disabling
+      mServer->Shutdown();
+      mServer = nullptr;
+    }
+    mIsEnabled = enabled;
+  }
 };
 
 int main()
 {
   MyService service;
   service.setEnabled(true);
+  // the following will not be executed since setEnabled(true) will block. TODO: Run in the another thread
   if( service.getEnabled() ){
     std::cout << "service enabled" << std::endl;
     std::cout << "ro.serialno=" << service.getValue("ro.serialno") << std::endl;
