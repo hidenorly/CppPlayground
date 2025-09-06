@@ -21,17 +21,44 @@
 #include <string>
 #include <map>
 
+#include <grpcpp/grpcpp.h>
+
+using grpc::Server;
+using grpc::ServerBuilder;
+using grpc::ServerContext;
+using grpc::Status;
 
 class ServiceBase
 {
 protected:
   std::atomic<bool> mIsEnabled = false;
+  std::unique_ptr<Server> mServer;
 
 public:
   ServiceBase() = default;
   virtual ~ServiceBase() = default;
-  virtual void setEnabled(bool enabled){
-    // TODO: Actual registration & unregistration
+  virtual ::grpc::Service* getGrpcService() = 0;
+  virtual void setEnabled(bool enabled) {
+    if(!mIsEnabled && enabled){
+      // enabling
+      std::string server_address("0.0.0.0:50051");
+
+      ServerBuilder builder;
+      builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+      builder.RegisterService(getGrpcService());
+
+      mServer = builder.BuildAndStart();
+      std::cout << "Server listening on " << server_address << std::endl;
+
+      // Run in the thread
+      std::thread([this]() {
+          mServer->Wait();
+      }).detach();
+    } else if ( mIsEnabled && !enabled ){
+      // disabling
+      mServer->Shutdown();
+      mServer = nullptr;
+    }
     mIsEnabled = enabled;
   }
   virtual bool getEnabled(){ return mIsEnabled; };

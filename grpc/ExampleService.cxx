@@ -74,28 +74,9 @@ public:
     return Status::OK;
   }
 
-  virtual void setEnabled(bool enabled) override {
-    if(!mIsEnabled && enabled){
-      // enabling
-      std::string server_address("0.0.0.0:50051");
-
-      ServerBuilder builder;
-      builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-      builder.RegisterService(this);
-
-      mServer = builder.BuildAndStart();
-      std::cout << "Server listening on " << server_address << std::endl;
-
-      // Run in the thread
-      std::thread([this]() {
-          mServer->Wait();
-      }).detach();
-    } else if ( mIsEnabled && !enabled ){
-      // disabling
-      mServer->Shutdown();
-      mServer = nullptr;
-    }
-    mIsEnabled = enabled;
+protected:
+  virtual ::grpc::Service* getGrpcService() override {
+    return this;
   }
 };
 
