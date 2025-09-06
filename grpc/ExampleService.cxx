@@ -20,6 +20,7 @@
 #include <memory>
 #include <string>
 #include <map>
+#include <thread>
 
 #include <grpcpp/grpcpp.h>
 #include "build/generated/example.grpc.pb.h"
@@ -85,7 +86,10 @@ public:
       mServer = builder.BuildAndStart();
       std::cout << "Server listening on " << server_address << std::endl;
 
-      mServer->Wait();
+      // Run in the thread
+      std::thread([this]() {
+          mServer->Wait();
+      }).detach();
     } else if ( mIsEnabled && !enabled ){
       // disabling
       mServer->Shutdown();
@@ -98,8 +102,8 @@ public:
 int main()
 {
   MyService service;
+  std::cout << "Enable gRPC server\n";
   service.setEnabled(true);
-  // the following will not be executed since setEnabled(true) will block. TODO: Run in the another thread
   if( service.getEnabled() ){
     std::cout << "service enabled" << std::endl;
     std::cout << "ro.serialno=" << service.getValue("ro.serialno") << std::endl;
@@ -111,6 +115,8 @@ int main()
     service.setValue("ro.build.fingerprint", "writeonece2");
     std::cout << "ro.build.fingerprint=" << service.getValue("ro.build.fingerprint") << std::endl;
   }
+  std::cout << "Disable the server\n";
+  service.setEnabled(false);
 
   return 0;
 }
