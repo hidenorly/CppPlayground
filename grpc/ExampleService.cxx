@@ -14,7 +14,7 @@
    limitations under the License.
 */
 
-// clang++ -std=c++20 ExampleService.cxx
+// cd build; cmake ..; make; ./ExampleServer
 
 #include <iostream>
 #include <memory>
@@ -38,7 +38,7 @@ using com::gmail::twitte::harold::SetValueRequest;
 using com::gmail::twitte::harold::SetValueReply;
 
 
-class MyService : public ServiceBase, public MyInterface, public ExampleService::Service
+class MyService : public ServiceBase<MyService>, public MyInterface, public ExampleService::Service
 {
 protected:
   std::map<std::string, std::string> mRegistry;
@@ -72,11 +72,6 @@ public:
     setValue( request->key(), request->value() );
     reply->set_success(true);
     return Status::OK;
-  }
-
-protected:
-  virtual ::grpc::Service* getGrpcService() override {
-    return this;
   }
 };
 

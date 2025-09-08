@@ -28,6 +28,7 @@ using grpc::ServerBuilder;
 using grpc::ServerContext;
 using grpc::Status;
 
+template <typename Derived>
 class ServiceBase
 {
 protected:
@@ -37,7 +38,9 @@ protected:
 public:
   ServiceBase() = default;
   virtual ~ServiceBase() = default;
-  virtual ::grpc::Service* getGrpcService() = 0;
+  virtual ::grpc::Service* getGrpcService(){
+    return static_cast<Derived*>(this);
+  };
   virtual void setEnabled(bool enabled) {
     if(!mIsEnabled && enabled){
       // enabling
