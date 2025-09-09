@@ -33,5 +33,5 @@ target_link_libraries(example_proto PUBLIC gRPC::grpc++ protobuf::libprotobuf)
 add_executable(ExampleServer ExampleService.cxx)
 target_link_libraries(ExampleServer PRIVATE example_proto gRPC::grpc++ protobuf::libprotobuf)
 
-#add_executable(ExampleClient ExampleClient.cxx)
-#target_link_libraries(ExampleClient PRIVATE example_proto gRPC::grpc++ protobuf::libprotobuf)
+add_executable(ExampleClient ExampleClient.cxx)
+target_link_libraries(ExampleClient PRIVATE example_proto gRPC::grpc++ protobuf::libprotobuf)
