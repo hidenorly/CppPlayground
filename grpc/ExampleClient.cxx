@@ -20,12 +20,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
-#include <grpcpp/grpcpp.h>
-#include "build/generated/example.grpc.pb.h"
-
-using grpc::Channel;
-using grpc::ClientContext;
-using grpc::Status;
+#include "ExampleClient.hpp"
 
 using com::gmail::twitte::harold::ExampleService;
 using com::gmail::twitte::harold::GetValueRequest;
@@ -33,30 +28,6 @@ using com::gmail::twitte::harold::GetValueReply;
 using com::gmail::twitte::harold::SetValueRequest;
 using com::gmail::twitte::harold::SetValueReply;
 
-
-template <typename Derived, typename ServiceType>
-class ClientBase {
-protected:
-    std::shared_ptr<Channel> mChannel;
-    std::unique_ptr<typename ServiceType::Stub> mStub;
-
-public:
-    ClientBase() = default;
-    virtual ~ClientBase() = default;
-
-    void connect(const std::string& server_address) {
-        mChannel = grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials());
-        mStub = ServiceType::NewStub(mChannel);
-    }
-
-    bool isConnected() const {
-        return (mStub != nullptr);
-    }
-
-    typename ServiceType::Stub* getStub() {
-        return mStub.get();
-    }
-};
 
 
 class MyServiceClient 
