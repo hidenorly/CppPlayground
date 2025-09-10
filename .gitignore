@@ -36,3 +36,5 @@
 
 # static code anlysis
 infer-out/*
+
+grpc/build/*
