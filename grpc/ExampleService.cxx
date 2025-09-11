@@ -36,6 +36,8 @@ using com::gmail::twitte::harold::GetValueRequest;
 using com::gmail::twitte::harold::GetValueReply;
 using com::gmail::twitte::harold::SetValueRequest;
 using com::gmail::twitte::harold::SetValueReply;
+using com::gmail::twitte::harold::ShutdownRequest;
+using com::gmail::twitte::harold::ShutdownReply;
 
 
 class MyService : public ServiceBase<MyService>, public MyInterface, public ExampleService::Service
@@ -70,6 +72,12 @@ public:
 
   Status SetValue(ServerContext* context, const SetValueRequest* request, SetValueReply* reply) override {
     setValue( request->key(), request->value() );
+    reply->set_success(true);
+    return Status::OK;
+  }
+
+  Status Shutdown(ServerContext* context, const ShutdownRequest* request, ShutdownReply* reply) override {
+    setEnabled(false);
     reply->set_success(true);
     return Status::OK;
   }

@@ -5,6 +5,7 @@ package com.gmail.twitte.harold;
 service ExampleService {
   rpc GetValue (GetValueRequest) returns (GetValueReply);
   rpc SetValue (SetValueRequest) returns (SetValueReply);
+  rpc Shutdown (ShutdownRequest) returns (ShutdownReply);
 }
 
 message GetValueRequest {
@@ -21,5 +22,10 @@ message SetValueRequest {
 }
 
 message SetValueReply {
+  bool success = 1;
+}
+
+message ShutdownRequest {}
+message ShutdownReply {
   bool success = 1;
 }
