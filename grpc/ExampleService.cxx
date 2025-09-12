@@ -99,7 +99,10 @@ int main()
     service.setValue("ro.build.fingerprint", "writeonece2");
     std::cout << "ro.build.fingerprint=" << service.getValue("ro.build.fingerprint") << std::endl;
   }
-  std::cout << "Disable the server\n";
+
+
+  std::cout << "Enable sever in 10 seconds or invoke Shutdon() to turn off immediately\n";
+  std::this_thread::sleep_for(std::chrono::seconds(10));
   service.setEnabled(false);
 
   return 0;
