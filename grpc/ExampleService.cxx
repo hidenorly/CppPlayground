@@ -77,7 +77,9 @@ public:
   }
 
   Status Shutdown(ServerContext* context, const ShutdownRequest* request, ShutdownReply* reply) override {
-    setEnabled(false);
+    std::cout << "Shutdown() requested\n";
+    requestShutdownAsync();
+    std::cout << "Done:requestShutdownAsync()\n";
     reply->set_success(true);
     return Status::OK;
   }
@@ -102,7 +104,11 @@ int main()
 
 
   std::cout << "Enable sever in 10 seconds or invoke Shutdon() to turn off immediately\n";
-  std::this_thread::sleep_for(std::chrono::seconds(10));
+  const int MIN_RESPONSE_MILLISECOND = 100;
+  for(int i=0; i<10*(1000/MIN_RESPONSE_MILLISECOND); i++){
+    std::this_thread::sleep_for(std::chrono::milliseconds(MIN_RESPONSE_MILLISECOND));
+    if( !service.getEnabled() ) break;
+  }
   service.setEnabled(false);
 
   return 0;

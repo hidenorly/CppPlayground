@@ -41,6 +41,12 @@ public:
   virtual ::grpc::Service* getGrpcService(){
     return static_cast<Derived*>(this);
   };
+  void requestShutdownAsync() {
+      std::thread([this]() {
+          this->setEnabled(false);
+      }).detach();
+  }
+
   virtual void setEnabled(bool enabled) {
     if(!mIsEnabled && enabled){
       // enabling
