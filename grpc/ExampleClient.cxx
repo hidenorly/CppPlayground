@@ -27,7 +27,8 @@ using com::gmail::twitte::harold::GetValueRequest;
 using com::gmail::twitte::harold::GetValueReply;
 using com::gmail::twitte::harold::SetValueRequest;
 using com::gmail::twitte::harold::SetValueReply;
-
+using com::gmail::twitte::harold::ShutdownRequest;
+using com::gmail::twitte::harold::ShutdownReply;
 
 
 class MyServiceClient 
@@ -60,6 +61,15 @@ public:
         Status status = getStub()->SetValue(&context, request, &reply);
         return status.ok();
     }
+
+    bool shutdown(void) {
+        ShutdownRequest request;
+        ShutdownReply reply;
+        ClientContext context;
+
+        Status status = getStub()->Shutdown(&context, request, &reply);
+        return status.ok();
+    }
 };
 
 
@@ -83,6 +93,9 @@ int main(int argc, char** argv) {
     std::cout << "Getting key1..." << std::endl;
     std::string value = client.getValue("key1");
     std::cout << "Got value: " << value << std::endl;
+
+    std::cout << "Request Shutdown()" << std::endl;
+    client.shutdown();
 
     return 0;
 }
