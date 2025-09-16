@@ -38,13 +38,56 @@ using com::gmail::twitte::harold::SetValueRequest;
 using com::gmail::twitte::harold::SetValueReply;
 using com::gmail::twitte::harold::ShutdownRequest;
 using com::gmail::twitte::harold::ShutdownReply;
+using com::gmail::twitte::harold::ChangeNotification;
+using com::gmail::twitte::harold::SubscriptionRequest;
+
+class SubscriptionManager {
+public:
+  using Stream = grpc::ServerReaderWriter<ChangeNotification, SubscriptionRequest>;
+  using Subscription = std::pair<ServerContext*, Stream*>;
+
+protected:
+  std::list<Subscription> mSubscriptions;
+  std::mutex mMutex;
+
+public:
+  void addSubscription(ServerContext* context, Stream* stream) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    mSubscriptions.emplace_back(context, stream);
+  }
+
+  void removeSubscription(ServerContext* context) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    mSubscriptions.remove_if([context](const Subscription& s){
+      return s.first == context;
+    });
+  }
+
+  void notifyAll(const std::string& key, const std::string& value) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    ChangeNotification notification;
+    notification.set_key(key);
+    notification.set_new_value(value);
+
+    for (const auto& subscription : mSubscriptions) {
+      // 接続が有効か確認し、通知を送信
+      if (!subscription.second->Write(notification)) {
+        std::cerr << "Failed to write to client, assuming disconnect." << std::endl;
+      }
+    }
+  }
+};
+
+
 
 
 class MyService : public ServiceBase<MyService>, public MyInterface, public ExampleService::Service
 {
 protected:
-  std::map<std::string, std::string> mRegistry;
   std::unique_ptr<Server> mServer;
+  std::map<std::string, std::string> mRegistry;
+  std::mutex mRegistryMutex;
+  SubscriptionManager mSubscriptionManager;
 
 public:
   MyService(){
@@ -53,14 +96,26 @@ public:
   virtual ~MyService() = default;
 
 //protected:
-  virtual std::string getValue(std::string key) override{
+  virtual std::string getValue(std::string key) override {
+    std::lock_guard<std::mutex> lock(mRegistryMutex);
     return mRegistry.contains(key) ? mRegistry[key] : "";
   }
 
-  virtual void setValue(std::string key, std::string value) override{
-    if( key.starts_with("ro.") && mRegistry.contains(key) ){
-    } else {
-      mRegistry[key] = value;
+  virtual void setValue(std::string key, std::string value) override {
+    std::string oldValue;
+    bool valueChanged = false;
+
+    {
+      if (mRegistry.contains(key)) {
+        oldValue = mRegistry[key];
+      }
+      if (oldValue != value || !mRegistry.contains(key)) {
+        mRegistry[key] = value;
+        valueChanged = true;
+      }
+    }
+    if (valueChanged) {
+        mSubscriptionManager.notifyAll(key, value);
     }
   }
 
@@ -73,6 +128,19 @@ public:
   Status SetValue(ServerContext* context, const SetValueRequest* request, SetValueReply* reply) override {
     setValue( request->key(), request->value() );
     reply->set_success(true);
+    return Status::OK;
+  }
+
+  Status SubscribeToChanges(ServerContext* context, grpc::ServerReaderWriter<ChangeNotification, SubscriptionRequest>* stream) override {
+    mSubscriptionManager.addSubscription(context, stream);
+    std::cout << "Client subscribed to changes." << std::endl;
+
+    SubscriptionRequest request;
+    while (stream->Read(&request)) {
+    }
+
+    mSubscriptionManager.removeSubscription(context);
+    std::cout << "Client unsubscribed from changes." << std::endl;
     return Status::OK;
   }
 
