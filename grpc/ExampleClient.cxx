@@ -20,6 +20,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <thread>
 #include "ExampleClient.hpp"
 
 using com::gmail::twitte::harold::ExampleService;
@@ -29,11 +30,17 @@ using com::gmail::twitte::harold::SetValueRequest;
 using com::gmail::twitte::harold::SetValueReply;
 using com::gmail::twitte::harold::ShutdownRequest;
 using com::gmail::twitte::harold::ShutdownReply;
+using com::gmail::twitte::harold::ChangeNotification;
+using com::gmail::twitte::harold::SubscriptionRequest;
 
+class MyServiceClient : public ClientBase<MyServiceClient, ExampleService> {
+protected:
+  std::unique_ptr<ExampleService::Stub> mStub;
 
-class MyServiceClient 
-    : public ClientBase<MyServiceClient, ExampleService> {
 public:
+    MyServiceClient(std::shared_ptr<Channel> channel) : mStub(ExampleService::NewStub(channel)) {}
+    virtual ~MyServiceClient() = default;
+
     std::string getValue(const std::string& key) {
         GetValueRequest request;
         request.set_key(key);
@@ -62,6 +69,26 @@ public:
         return status.ok();
     }
 
+    void subscribeToChanges() {
+        ClientContext context;
+        std::shared_ptr<grpc::ClientReaderWriter<SubscriptionRequest, ChangeNotification>> stream(
+        mStub->SubscribeToChanges(&context));
+
+        ChangeNotification notification;
+        std::cout << "Subscribed to change notifications. Waiting for updates..." << std::endl;
+
+        while (stream->Read(&notification)) {
+            std::cout << "Notification received: Key '" << notification.key()
+            << "' changed to '" << notification.new_value() << "'" << std::endl;
+        }
+
+        Status status = stream->Finish();
+        if (!status.ok()) {
+            std::cerr << "SubscribeToChanges stream failed: " << status.error_message() << std::endl;
+        }
+        std::cout << "Subscription stream terminated." << std::endl;
+    }
+
     bool shutdown(void) {
         ShutdownRequest request;
         ShutdownReply reply;
@@ -75,8 +102,14 @@ public:
 
 // ---- main ----
 int main(int argc, char** argv) {
-    MyServiceClient client;
-    client.connect("localhost:50051");
+    std::string server_address("localhost:50051");
+    MyServiceClient client(grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials()));
+
+    std::thread subscriber_thread([&]() {
+        client.subscribeToChanges();
+    });
+
+    std::this_thread::sleep_for(std::chrono::seconds(3));
 
     if (!client.isConnected()) {
         std::cerr << "Failed to connect to server" << std::endl;
@@ -96,6 +129,8 @@ int main(int argc, char** argv) {
 
     std::cout << "Request Shutdown()" << std::endl;
     client.shutdown();
+
+    subscriber_thread.join();
 
     return 0;
 }

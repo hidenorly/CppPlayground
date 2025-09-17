@@ -70,7 +70,7 @@ public:
     notification.set_new_value(value);
 
     for (const auto& subscription : mSubscriptions) {
-      // 接続が有効か確認し、通知を送信
+      // Check the connection then send the notify
       if (!subscription.second->Write(notification)) {
         std::cerr << "Failed to write to client, assuming disconnect." << std::endl;
       }
