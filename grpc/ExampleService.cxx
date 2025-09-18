@@ -41,43 +41,12 @@ using com::gmail::twitte::harold::ShutdownReply;
 using com::gmail::twitte::harold::ChangeNotification;
 using com::gmail::twitte::harold::SubscriptionRequest;
 
-class SubscriptionManager {
-public:
-  using Stream = grpc::ServerReaderWriter<ChangeNotification, SubscriptionRequest>;
-  using Subscription = std::pair<ServerContext*, Stream*>;
 
-protected:
-  std::list<Subscription> mSubscriptions;
-  std::mutex mMutex;
-
-public:
-  void addSubscription(ServerContext* context, Stream* stream) {
-    std::lock_guard<std::mutex> lock(mMutex);
-    mSubscriptions.emplace_back(context, stream);
-  }
-
-  void removeSubscription(ServerContext* context) {
-    std::lock_guard<std::mutex> lock(mMutex);
-    mSubscriptions.remove_if([context](const Subscription& s){
-      return s.first == context;
-    });
-  }
-
-  void notifyAll(const std::string& key, const std::string& value) {
-    std::lock_guard<std::mutex> lock(mMutex);
-    ChangeNotification notification;
-    notification.set_key(key);
-    notification.set_new_value(value);
-
-    for (const auto& subscription : mSubscriptions) {
-      // Check the connection then send the notify
-      if (!subscription.second->Write(notification)) {
-        std::cerr << "Failed to write to client, assuming disconnect." << std::endl;
-      }
-    }
-  }
-};
-
+using SubscriptionManager = TSubscriptionManager<
+    ServerContext,
+    grpc::ServerReaderWriter<ChangeNotification, SubscriptionRequest>,
+    ChangeNotification
+>;
 
 
 
@@ -115,7 +84,10 @@ public:
       }
     }
     if (valueChanged) {
-        mSubscriptionManager.notifyAll(key, value);
+      ChangeNotification notice;
+      notice.set_key(key);
+      notice.set_new_value(value);
+      mSubscriptionManager.notifyAll(notice);
     }
   }
 

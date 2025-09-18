@@ -74,6 +74,41 @@ public:
   virtual bool getEnabled(){ return mIsEnabled; };
 };
 
+// TContext: The type of the ServerContext.
+// TStream: The type of the ServerReaderWriter stream.
+// TContent: the notifying content
+template <typename TContext, typename TStream, typename TContent>
+class TSubscriptionManager {
+public:
+    using Subscription = std::pair<TContext*, TStream*>;
+
+protected:
+    std::list<Subscription> mSubscriptions;
+    std::mutex mMutex;
+
+public:
+    void addSubscription(TContext* context, TStream* stream) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        mSubscriptions.emplace_back(context, stream);
+    }
+
+    void removeSubscription(TContext* context) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        mSubscriptions.remove_if([context](const Subscription& s) {
+            return s.first == context;
+        });
+    }
+
+    virtual void notifyAll(const TContent& content) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        for (const auto& subscription : mSubscriptions) {
+            // Check the connection then send the notify
+            if (!subscription.second->Write(content)) {
+                std::cerr << "Failed to write to client, assuming disconnect." << std::endl;
+            }
+        }
+    }
+};
 
 class MyInterface
 {
