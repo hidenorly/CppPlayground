@@ -34,11 +34,8 @@ using com::gmail::twitte::harold::ChangeNotification;
 using com::gmail::twitte::harold::SubscriptionRequest;
 
 class MyServiceClient : public ClientBase<MyServiceClient, ExampleService> {
-protected:
-  std::unique_ptr<ExampleService::Stub> mStub;
-
 public:
-    MyServiceClient(std::shared_ptr<Channel> channel) : mStub(ExampleService::NewStub(channel)) {}
+    MyServiceClient() = default;
     virtual ~MyServiceClient() = default;
 
     std::string getValue(const std::string& key) {
@@ -71,15 +68,13 @@ public:
 
     void subscribeToChanges() {
         ClientContext context;
-        std::shared_ptr<grpc::ClientReaderWriter<SubscriptionRequest, ChangeNotification>> stream(
-        mStub->SubscribeToChanges(&context));
+        std::shared_ptr<grpc::ClientReaderWriter<SubscriptionRequest, ChangeNotification>> stream(mStub->SubscribeToChanges(&context));
 
         ChangeNotification notification;
         std::cout << "Subscribed to change notifications. Waiting for updates..." << std::endl;
 
         while (stream->Read(&notification)) {
-            std::cout << "Notification received: Key '" << notification.key()
-            << "' changed to '" << notification.new_value() << "'" << std::endl;
+            std::cout << "Notified: Key '" << notification.key() << "' = '" << notification.new_value() << "'" << std::endl;
         }
 
         Status status = stream->Finish();
@@ -103,34 +98,37 @@ public:
 // ---- main ----
 int main(int argc, char** argv) {
     std::string server_address("localhost:50051");
-    MyServiceClient client(grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials()));
+    MyServiceClient client;
+    client.connect(server_address);
 
-    std::thread subscriber_thread([&]() {
-        client.subscribeToChanges();
-    });
+    if (client.isConnected()) {
+        std::thread subscriber_thread([&]() {
+            client.subscribeToChanges();
+        });
 
-    std::this_thread::sleep_for(std::chrono::seconds(3));
+        std::thread changer_thread([&]() {
+            std::this_thread::sleep_for(std::chrono::seconds(2));
+            std::cout << "Setting key1=value1..." << std::endl;
+            if (client.setValue("key1", "value1")) {
+                std::cout << "Set succeeded" << std::endl;
+            } else {
+                std::cout << "Set failed" << std::endl;
+            }
 
-    if (!client.isConnected()) {
-        std::cerr << "Failed to connect to server" << std::endl;
-        return 1;
-    }
+            std::cout << "Getting key1..." << std::endl;
+            std::string value = client.getValue("key1");
+            std::cout << "Got value: " << value << std::endl;
 
-    std::cout << "Setting key1=value1..." << std::endl;
-    if (client.setValue("key1", "value1")) {
-        std::cout << "Set succeeded" << std::endl;
+            std::cout << "Request Shutdown()" << std::endl;
+            client.shutdown();
+        });
+
+        subscriber_thread.join();
+        changer_thread.join();
     } else {
-        std::cout << "Set failed" << std::endl;
+        std::cerr << "Failed to connect to the server within the timeout period." << std::endl;
+        return -1;
     }
-
-    std::cout << "Getting key1..." << std::endl;
-    std::string value = client.getValue("key1");
-    std::cout << "Got value: " << value << std::endl;
-
-    std::cout << "Request Shutdown()" << std::endl;
-    client.shutdown();
-
-    subscriber_thread.join();
 
     return 0;
 }
