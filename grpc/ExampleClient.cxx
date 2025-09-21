@@ -34,6 +34,11 @@ using com::gmail::twitte::harold::ChangeNotification;
 using com::gmail::twitte::harold::SubscriptionRequest;
 
 class MyServiceClient : public ClientBase<MyServiceClient, ExampleService> {
+protected:
+    std::unique_ptr<ClientContext> mSubscriberContext;
+    std::unique_ptr<grpc::ClientReaderWriter<SubscriptionRequest, ChangeNotification>> mSubscriberStream;
+    std::mutex mMutexSubscriber;
+
 public:
     MyServiceClient() = default;
     virtual ~MyServiceClient() = default;
@@ -67,21 +72,30 @@ public:
     }
 
     void subscribeToChanges() {
-        ClientContext context;
-        std::shared_ptr<grpc::ClientReaderWriter<SubscriptionRequest, ChangeNotification>> stream(mStub->SubscribeToChanges(&context));
+        std::lock_guard<std::mutex> lock(mMutexSubscriber);
+        mSubscriberContext = std::make_unique<ClientContext>();
+        mSubscriberStream = std::unique_ptr<grpc::ClientReaderWriter<SubscriptionRequest, ChangeNotification>>(
+            mStub->SubscribeToChanges(mSubscriberContext.get()));
 
         ChangeNotification notification;
         std::cout << "Subscribed to change notifications. Waiting for updates..." << std::endl;
 
-        while (stream->Read(&notification)) {
+        while (mSubscriberStream->Read(&notification)) {
             std::cout << "Notified: Key '" << notification.key() << "' = '" << notification.new_value() << "'" << std::endl;
         }
 
-        Status status = stream->Finish();
+        Status status = mSubscriberStream->Finish();
         if (!status.ok()) {
             std::cerr << "SubscribeToChanges stream failed: " << status.error_message() << std::endl;
         }
         std::cout << "Subscription stream terminated." << std::endl;
+    }
+
+    void cancelSubscription() {
+        std::lock_guard<std::mutex> lock(mMutexSubscriber);
+        if (mSubscriberContext) {
+            mSubscriberContext->TryCancel();
+        }
     }
 
     bool shutdown(void) {
@@ -123,8 +137,9 @@ int main(int argc, char** argv) {
             client.shutdown();
         });
 
-        subscriber_thread.join();
         changer_thread.join();
+        client.cancelSubscription();
+        subscriber_thread.join();
     } else {
         std::cerr << "Failed to connect to the server within the timeout period." << std::endl;
         return -1;
