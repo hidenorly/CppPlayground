@@ -41,7 +41,9 @@ protected:
 
 public:
     MyServiceClient() = default;
-    virtual ~MyServiceClient() = default;
+    virtual ~MyServiceClient(){
+        cancelSubscription();
+    }
 
     std::string getValue(const std::string& key) {
         GetValueRequest request;
@@ -72,23 +74,28 @@ public:
     }
 
     void subscribeToChanges() {
-        std::lock_guard<std::mutex> lock(mMutexSubscriber);
-        mSubscriberContext = std::make_unique<ClientContext>();
-        mSubscriberStream = std::unique_ptr<grpc::ClientReaderWriter<SubscriptionRequest, ChangeNotification>>(
-            mStub->SubscribeToChanges(mSubscriberContext.get()));
+        {
+            std::lock_guard<std::mutex> lock(mMutexSubscriber);
+            mSubscriberContext = std::make_unique<ClientContext>();
+            mSubscriberStream = std::unique_ptr<grpc::ClientReaderWriter<SubscriptionRequest, ChangeNotification>>(mStub->SubscribeToChanges(mSubscriberContext.get()));
+        }
 
         ChangeNotification notification;
         std::cout << "Subscribed to change notifications. Waiting for updates..." << std::endl;
 
-        while (mSubscriberStream->Read(&notification)) {
+        while (mSubscriberContext && mSubscriberStream->Read(&notification)) {
             std::cout << "Notified: Key '" << notification.key() << "' = '" << notification.new_value() << "'" << std::endl;
         }
 
-        Status status = mSubscriberStream->Finish();
-        if (!status.ok()) {
-            std::cerr << "SubscribeToChanges stream failed: " << status.error_message() << std::endl;
+        if(mSubscriberContext){
+            Status status = mSubscriberStream->Finish();
+            if (!status.ok()) {
+                std::cerr << "SubscribeToChanges stream failed: " << status.error_message() << std::endl;
+            }
         }
         std::cout << "Subscription stream terminated." << std::endl;
+
+        mSubscriberStream = nullptr;
     }
 
     void cancelSubscription() {
@@ -138,7 +145,9 @@ int main(int argc, char** argv) {
         });
 
         changer_thread.join();
+        std::cout << "Try to cancel the subscription" << std::endl;
         client.cancelSubscription();
+        std::cout << "Cancelled." << std::endl;
         subscriber_thread.join();
     } else {
         std::cerr << "Failed to connect to the server within the timeout period." << std::endl;
