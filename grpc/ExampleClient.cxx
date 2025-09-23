@@ -18,9 +18,11 @@
 
 
 #include <iostream>
+#include <vector>
 #include <memory>
 #include <string>
 #include <thread>
+#include <algorithm>
 #include "ExampleClient.hpp"
 
 using com::gmail::twitte::harold::ExampleService;
@@ -73,6 +75,25 @@ public:
         return status.ok();
     }
 
+    typedef std::function<void(const std::string&, const std::string&)> NOTIFIER;
+
+protected:
+    std::map<std::string, NOTIFIER> mCallbacks;
+    std::mutex mCallbackMutex;
+
+public:
+    void registerCallback(const std::string& id, const NOTIFIER& callback) {
+        std::lock_guard<std::mutex> lock(mCallbackMutex);
+        mCallbacks[id] = callback;
+    }
+
+    void unregisterCallback(const std::string& id) {
+        std::lock_guard<std::mutex> lock(mCallbackMutex);
+        if( mCallbacks.contains(id) ){
+            mCallbacks.erase(id);
+        }
+    }
+
     void subscribeToChanges() {
         {
             std::lock_guard<std::mutex> lock(mMutexSubscriber);
@@ -84,7 +105,10 @@ public:
         std::cout << "Subscribed to change notifications. Waiting for updates..." << std::endl;
 
         while (mSubscriberContext && mSubscriberStream->Read(&notification)) {
-            std::cout << "Notified: Key '" << notification.key() << "' = '" << notification.new_value() << "'" << std::endl;
+            std::lock_guard<std::mutex> lock(mCallbackMutex);
+            for( auto& [id, callback] : mCallbacks ){
+                callback(notification.key(), notification.new_value());
+            }
         }
 
         if(mSubscriberContext){
@@ -124,7 +148,15 @@ int main(int argc, char** argv) {
 
     if (client.isConnected()) {
         std::thread subscriber_thread([&]() {
+            auto callback = [&](const std::string& key, const std::string& value) {
+                std::cout << "Notified via callback: Key '" << key << "' = '" << value << "'" << std::endl;
+            };
+            const std::string id_1 = "1";
+            const std::string id_2 = "2";
+            client.registerCallback(id_1, callback);
+            client.registerCallback(id_2, callback);
             client.subscribeToChanges();
+            client.unregisterCallback(id_1);
         });
 
         std::thread changer_thread([&]() {
