@@ -44,7 +44,7 @@ protected:
 public:
     MyServiceClient() = default;
     virtual ~MyServiceClient(){
-        cancelSubscription();
+        terminateSubscriber();
     }
 
     std::string getValue(const std::string& key) {
@@ -80,20 +80,41 @@ public:
 protected:
     std::map<std::string, NOTIFIER> mCallbacks;
     std::mutex mCallbackMutex;
+    std::unique_ptr<std::thread> mSubscriberThread;
 
 public:
     void registerCallback(const std::string& id, const NOTIFIER& callback) {
         std::lock_guard<std::mutex> lock(mCallbackMutex);
         mCallbacks[id] = callback;
+        if( !mSubscriberThread ){
+            mSubscriberThread = std::make_unique<std::thread>([&]{
+                subscribeToChanges();
+            });
+        }
     }
 
+protected:
+    void terminateSubscriber(){
+        std::cout << "terminateSubscriber\n";
+        cancelSubscription();
+        if( mSubscriberThread ){
+            mSubscriberThread->join();
+            mSubscriberThread = nullptr;
+        }
+    }
+
+public:
     void unregisterCallback(const std::string& id) {
         std::lock_guard<std::mutex> lock(mCallbackMutex);
         if( mCallbacks.contains(id) ){
             mCallbacks.erase(id);
         }
+        if( mCallbacks.empty() ){
+            terminateSubscriber();
+        }
     }
 
+protected:
     void subscribeToChanges() {
         {
             std::lock_guard<std::mutex> lock(mMutexSubscriber);
@@ -129,6 +150,7 @@ public:
         }
     }
 
+public:
     bool shutdown(void) {
         ShutdownRequest request;
         ShutdownReply reply;
@@ -147,17 +169,13 @@ int main(int argc, char** argv) {
     client.connect(server_address);
 
     if (client.isConnected()) {
-        std::thread subscriber_thread([&]() {
-            auto callback = [&](const std::string& key, const std::string& value) {
-                std::cout << "Notified via callback: Key '" << key << "' = '" << value << "'" << std::endl;
-            };
-            const std::string id_1 = "1";
-            const std::string id_2 = "2";
-            client.registerCallback(id_1, callback);
-            client.registerCallback(id_2, callback);
-            client.subscribeToChanges();
-            client.unregisterCallback(id_1);
-        });
+        auto callback = [&](const std::string& key, const std::string& value) {
+            std::cout << "Notified via callback: Key '" << key << "' = '" << value << "'" << std::endl;
+        };
+        const std::string id_1 = "1";
+        const std::string id_2 = "2";
+        client.registerCallback(id_1, callback);
+        client.registerCallback(id_2, callback);
 
         std::thread changer_thread([&]() {
             std::this_thread::sleep_for(std::chrono::seconds(2));
@@ -177,10 +195,9 @@ int main(int argc, char** argv) {
         });
 
         changer_thread.join();
-        std::cout << "Try to cancel the subscription" << std::endl;
-        client.cancelSubscription();
-        std::cout << "Cancelled." << std::endl;
-        subscriber_thread.join();
+
+        client.unregisterCallback(id_1);
+        client.unregisterCallback(id_2);
     } else {
         std::cerr << "Failed to connect to the server within the timeout period." << std::endl;
         return -1;
