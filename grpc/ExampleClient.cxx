@@ -36,10 +36,18 @@ using com::gmail::twitte::harold::ChangeNotification;
 using com::gmail::twitte::harold::SubscriptionRequest;
 
 class MyServiceClient : public ClientBase<MyServiceClient, ExampleService> {
+public:
+    typedef std::function<void(const std::string&, const std::string&)> NOTIFIER;
+
 protected:
     std::unique_ptr<ClientContext> mSubscriberContext;
     std::unique_ptr<grpc::ClientReaderWriter<SubscriptionRequest, ChangeNotification>> mSubscriberStream;
     std::mutex mMutexSubscriber;
+
+    std::map<std::string, NOTIFIER> mCallbacks;
+    std::mutex mCallbackMutex;
+    std::unique_ptr<std::thread> mSubscriberThread;
+
 
 public:
     MyServiceClient() = default;
@@ -75,14 +83,15 @@ public:
         return status.ok();
     }
 
-    typedef std::function<void(const std::string&, const std::string&)> NOTIFIER;
+    bool shutdown(void) {
+        ShutdownRequest request;
+        ShutdownReply reply;
+        ClientContext context;
 
-protected:
-    std::map<std::string, NOTIFIER> mCallbacks;
-    std::mutex mCallbackMutex;
-    std::unique_ptr<std::thread> mSubscriberThread;
+        Status status = getStub()->Shutdown(&context, request, &reply);
+        return status.ok();
+    }
 
-public:
     void registerCallback(const std::string& id, const NOTIFIER& callback) {
         std::lock_guard<std::mutex> lock(mCallbackMutex);
         mCallbacks[id] = callback;
@@ -93,17 +102,6 @@ public:
         }
     }
 
-protected:
-    void terminateSubscriber(){
-        std::cout << "terminateSubscriber\n";
-        cancelSubscription();
-        if( mSubscriberThread ){
-            mSubscriberThread->join();
-            mSubscriberThread = nullptr;
-        }
-    }
-
-public:
     void unregisterCallback(const std::string& id) {
         std::lock_guard<std::mutex> lock(mCallbackMutex);
         if( mCallbacks.contains(id) ){
@@ -150,14 +148,13 @@ protected:
         }
     }
 
-public:
-    bool shutdown(void) {
-        ShutdownRequest request;
-        ShutdownReply reply;
-        ClientContext context;
-
-        Status status = getStub()->Shutdown(&context, request, &reply);
-        return status.ok();
+    void terminateSubscriber(){
+        std::cout << "terminateSubscriber\n";
+        cancelSubscription();
+        if( mSubscriberThread ){
+            mSubscriberThread->join();
+            mSubscriberThread = nullptr;
+        }
     }
 };
 
