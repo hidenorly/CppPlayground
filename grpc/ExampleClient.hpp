@@ -17,16 +17,10 @@
 // cd build; cmake ..; make; ./ExampleClient
 
 
-#include <iostream>
 #include <memory>
-#include <string>
 #include <grpcpp/grpcpp.h>
-#include "build/generated/example.grpc.pb.h"
 
 using grpc::Channel;
-using grpc::ClientContext;
-using grpc::Status;
-
 
 template <typename Derived, typename ServiceType>
 class ClientBase {

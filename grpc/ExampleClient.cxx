@@ -23,7 +23,11 @@
 #include <string>
 #include <thread>
 #include <algorithm>
+#include "build/generated/example.grpc.pb.h"
 #include "ExampleClient.hpp"
+
+using grpc::ClientContext;
+using grpc::Status;
 
 using com::gmail::twitte::harold::ExampleService;
 using com::gmail::twitte::harold::GetValueRequest;
