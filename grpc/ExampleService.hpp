@@ -17,10 +17,7 @@
 // clang++ -std=c++20 ExampleService.cxx
 
 #include <iostream>
-#include <memory>
 #include <string>
-#include <map>
-#include <thread>
 
 #include <grpcpp/grpcpp.h>
 
@@ -35,9 +32,10 @@ class ServiceBase
 protected:
   std::atomic<bool> mIsEnabled = false;
   std::unique_ptr<Server> mServer;
+  std::string mServerAddress;
 
 public:
-  ServiceBase() = default;
+  ServiceBase(std::string server_address = "0.0.0.0:50051") : mServerAddress(server_address){};
   virtual ~ServiceBase() = default;
   virtual ::grpc::Service* getGrpcService(){
     return static_cast<Derived*>(this);
@@ -51,14 +49,12 @@ public:
   virtual void setEnabled(bool enabled) {
     if(!mIsEnabled && enabled){
       // enabling
-      std::string server_address("0.0.0.0:50051");
-
       ServerBuilder builder;
-      builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+      builder.AddListeningPort(mServerAddress, grpc::InsecureServerCredentials());
       builder.RegisterService(getGrpcService());
 
       mServer = builder.BuildAndStart();
-      std::cout << "Server listening on " << server_address << std::endl;
+      std::cout << "Server listening on " << mServerAddress << std::endl;
 
       // Run in the thread
       std::thread([this]() {
