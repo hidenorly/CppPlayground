@@ -22,7 +22,7 @@
 #include <map>
 #include <thread>
 
-#include <grpcpp/grpcpp.h>
+#include "GrpcUtil.hpp"
 #include "build/generated/example.grpc.pb.h"
 #include "ExampleService.hpp"
 
