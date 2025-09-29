@@ -24,7 +24,7 @@
 #include <thread>
 #include <algorithm>
 #include "build/generated/example.grpc.pb.h"
-#include "ExampleClient.hpp"
+#include "GrpcUtil.hpp"
 
 using grpc::ClientContext;
 using grpc::Status;

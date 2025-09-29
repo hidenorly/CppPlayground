@@ -27,6 +27,8 @@ using grpc::ServerBuilder;
 using grpc::ServerContext;
 using grpc::Status;
 
+// --- for server
+
 template <typename Derived>
 class ServiceBase
 {
@@ -107,3 +109,32 @@ public:
         }
     }
 };
+
+
+// --- for client
+using grpc::Channel;
+
+template <typename Derived, typename ServiceType>
+class ClientBase {
+protected:
+    std::shared_ptr<Channel> mChannel;
+    std::unique_ptr<typename ServiceType::Stub> mStub;
+
+public:
+    ClientBase() = default;
+    virtual ~ClientBase() = default;
+
+    void connect(const std::string& server_address) {
+        mChannel = grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials());
+        mStub = ServiceType::NewStub(mChannel);
+    }
+
+    bool isConnected() const {
+        return (mStub != nullptr);
+    }
+
+    typename ServiceType::Stub* getStub() {
+        return mStub.get();
+    }
+};
+
