@@ -14,8 +14,8 @@
    limitations under the License.
 */
 
-// cd build; cmake ..; make; ./ExampleClient
-
+// cd ~/work; git clone https://github.com/hidenorly/OptParse.git
+// cd ~/work/CppPlayground/grpc; mkdir build; cd build; cmake ..; make; ./ExampleClient
 
 #include <iostream>
 #include <vector>
