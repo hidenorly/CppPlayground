@@ -25,6 +25,7 @@
 #include <algorithm>
 #include "build/generated/example.grpc.pb.h"
 #include "GrpcUtil.hpp"
+#include "../../OptParse/OptParse.hpp"
 
 using grpc::ClientContext;
 using grpc::Status;
@@ -165,6 +166,15 @@ protected:
 
 // ---- main ----
 int main(int argc, char** argv) {
+    std::vector<OptParse::OptParseItem> options;
+
+    options.push_back( OptParse::OptParseItem("-b", "--benchmark", false, "", "Specify if benchmark"));
+
+    OptParse optParser( argc, argv, options );
+
+    bool isBenchmark = optParser.values.contains("-b") && (optParser.values["-b"]=="");
+    std::cout << "benchmark : " << (isBenchmark ? "true" : "false") << std::endl;
+
     std::string server_address("localhost:50051");
     MyServiceClient client;
     client.connect(server_address);
