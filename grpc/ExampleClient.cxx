@@ -164,22 +164,48 @@ protected:
 };
 
 
+void benchmark_invoke( MyServiceClient& client, int count = 1000)
+{
+    client.setValue("key1", "" );
+
+    std::vector<std::string> values;
+    for( int i=0; i<count; i++) {
+        values.push_back( std::to_string(i) );
+    }
+
+    auto startTime = std::chrono::steady_clock::now();
+
+    for( auto& value : values ){
+        client.setValue("key1", value );
+    }
+
+    auto endTime = std::chrono::steady_clock::now();
+
+    auto latency = (endTime - startTime) / count;
+    std::cout << "latency setValue : " << latency << std::endl;
+}
+
+
+
 // ---- main ----
 int main(int argc, char** argv) {
     std::vector<OptParse::OptParseItem> options;
 
-    options.push_back( OptParse::OptParseItem("-b", "--benchmark", false, "", "Specify if benchmark"));
+    options.push_back( OptParse::OptParseItem("-b", "--benchmark", true, "false", "Specify if benchmark"));
 
     OptParse optParser( argc, argv, options );
 
-    bool isBenchmark = optParser.values.contains("-b") && (optParser.values["-b"]=="");
-    std::cout << "benchmark : " << (isBenchmark ? "true" : "false") << std::endl;
+    bool isBenchmark = optParser.values.contains("-b") && ( optParser.values["-b"] == "true" );
 
     std::string server_address("localhost:50051");
     MyServiceClient client;
     client.connect(server_address);
 
     if (client.isConnected()) {
+        if( isBenchmark ){
+            benchmark_invoke( client );
+        }
+
         auto callback = [&](const std::string& key, const std::string& value) {
             std::cout << "Notified via callback: Key '" << key << "' = '" << value << "'" << std::endl;
         };
