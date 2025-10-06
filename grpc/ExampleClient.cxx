@@ -185,6 +185,51 @@ void benchmark_invoke( MyServiceClient& client, int count = 1000)
     std::cout << "latency setValue : " << latency << std::endl;
 }
 
+void benchmark_callback(MyServiceClient& client, int count = 1000)
+{
+    client.setValue("key1", "" );
+
+    std::vector<std::string> values;
+    for( int i=0; i<count; i++) {
+        values.push_back( std::to_string(i) );
+    }
+
+    using Clock = std::chrono::steady_clock;
+    std::map<std::string, Clock::time_point> startTimes;
+    std::map<std::string, Clock::duration> latencies;
+
+    auto callback = [&](const std::string& key, const std::string& value) {
+        auto endTime = Clock::now();
+        latencies[value] = endTime - startTimes[value];
+    };
+
+    const std::string id_1 = "1";
+    client.registerCallback(id_1, callback);
+
+    for( auto& value : values ){
+        startTimes[value] = Clock::now();
+        client.setValue("key1", value );
+    }
+
+    std::this_thread::sleep_for(std::chrono::seconds(3));
+
+    Clock::duration total_latency = Clock::duration::zero();
+    int64_t received_count = 0;
+
+    for (auto& entry : latencies) {
+        total_latency += entry.second;
+        received_count++;
+    }
+
+    double average_latency_us = -1;
+
+    if (received_count > 0) {
+        average_latency_us = std::chrono::duration_cast<std::chrono::microseconds>(total_latency).count() / static_cast<double>(received_count);
+    }
+
+    std::cout << "latency[uSec] setValue : " << average_latency_us << std::endl;
+}
+
 
 
 // ---- main ----
@@ -196,6 +241,7 @@ int main(int argc, char** argv) {
     OptParse optParser( argc, argv, options );
 
     bool isBenchmark = optParser.values.contains("-b") && ( optParser.values["-b"] == "true" );
+    std::cout << "benchmark : " << (isBenchmark ? "true" : "false") << std::endl;
 
     std::string server_address("localhost:50051");
     MyServiceClient client;
@@ -204,6 +250,7 @@ int main(int argc, char** argv) {
     if (client.isConnected()) {
         if( isBenchmark ){
             benchmark_invoke( client );
+            benchmark_callback( client );
         }
 
         auto callback = [&](const std::string& key, const std::string& value) {
