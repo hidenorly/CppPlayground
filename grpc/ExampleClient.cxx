@@ -227,7 +227,7 @@ void benchmark_callback(MyServiceClient& client, int count = 1000)
         average_latency_us = std::chrono::duration_cast<std::chrono::microseconds>(total_latency).count() / static_cast<double>(received_count);
     }
 
-    std::cout << "latency[uSec] setValue : " << average_latency_us << std::endl;
+    std::cout << "latency[uSec] callback of setValue : " << average_latency_us << std::endl;
 }
 
 
@@ -236,12 +236,13 @@ void benchmark_callback(MyServiceClient& client, int count = 1000)
 int main(int argc, char** argv) {
     std::vector<OptParse::OptParseItem> options;
 
-    options.push_back( OptParse::OptParseItem("-b", "--benchmark", true, "false", "Specify if benchmark"));
+    options.push_back( OptParse::OptParseItem("-b", "--benchmark", true, "0", "Specify if benchmark"));
 
     OptParse optParser( argc, argv, options );
 
-    bool isBenchmark = optParser.values.contains("-b") && ( optParser.values["-b"] == "true" );
-    std::cout << "benchmark : " << (isBenchmark ? "true" : "false") << std::endl;
+    int benchCount = std::stoi( optParser.values["-b"] );
+    bool isBenchmark = optParser.values.contains("-b") && ( benchCount!=0 );
+    std::cout << "benchmark : " << benchCount << std::endl;
 
     std::string server_address("localhost:50051");
     MyServiceClient client;
@@ -249,8 +250,8 @@ int main(int argc, char** argv) {
 
     if (client.isConnected()) {
         if( isBenchmark ){
-            benchmark_invoke( client );
-            benchmark_callback( client );
+            benchmark_invoke( client, benchCount );
+            benchmark_callback( client, benchCount );
         }
 
         auto callback = [&](const std::string& key, const std::string& value) {
