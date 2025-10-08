@@ -236,11 +236,11 @@ void benchmark_callback(MyServiceClient& client, int count = 1000)
 int main(int argc, char** argv) {
     std::vector<OptParse::OptParseItem> options;
 
-    options.push_back( OptParse::OptParseItem("-b", "--benchmark", true, "0", "Specify if benchmark"));
+    options.push_back( OptParse::OptParseItem("-b", "--benchmark", true, "0", "Specify benchmark count if benchmark"));
 
     OptParse optParser( argc, argv, options );
 
-    int benchCount = std::stoi( optParser.values["-b"] );
+    int benchCount = std::stoi( optParser.values["-b"]=="true" ? "1000" : optParser.values["-b"] );
     bool isBenchmark = optParser.values.contains("-b") && ( benchCount!=0 );
     std::cout << "benchmark : " << benchCount << std::endl;
 
