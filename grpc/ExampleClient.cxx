@@ -164,14 +164,19 @@ protected:
 };
 
 
+void construct_benchmark_data(std::vector<std::string>& values, int count)
+{
+    for( int i=0; i<count; i++) {
+        values.push_back( std::to_string(i) );
+    }
+}
+
 void benchmark_invoke( MyServiceClient& client, int count = 1000)
 {
     client.setValue("key1", "" );
 
     std::vector<std::string> values;
-    for( int i=0; i<count; i++) {
-        values.push_back( std::to_string(i) );
-    }
+    construct_benchmark_data(values, count);
 
     auto startTime = std::chrono::steady_clock::now();
 
@@ -190,19 +195,17 @@ void benchmark_callback(MyServiceClient& client, int count = 1000)
     client.setValue("key1", "" );
 
     std::vector<std::string> values;
-    for( int i=0; i<count; i++) {
-        values.push_back( std::to_string(i) );
-    }
+    construct_benchmark_data(values, count);
 
     using Clock = std::chrono::steady_clock;
     std::map<std::string, Clock::time_point> startTimes;
     std::map<std::string, Clock::duration> latencies;
 
+    // setup callback handler
     auto callback = [&](const std::string& key, const std::string& value) {
         auto endTime = Clock::now();
         latencies[value] = endTime - startTimes[value];
     };
-
     const std::string id_1 = "1";
     client.registerCallback(id_1, callback);
 
@@ -252,37 +255,37 @@ int main(int argc, char** argv) {
         if( isBenchmark ){
             benchmark_invoke( client, benchCount );
             benchmark_callback( client, benchCount );
+        } else {
+            auto callback = [&](const std::string& key, const std::string& value) {
+                std::cout << "Notified via callback: Key '" << key << "' = '" << value << "'" << std::endl;
+            };
+            const std::string id_1 = "1";
+            const std::string id_2 = "2";
+            client.registerCallback(id_1, callback);
+            client.registerCallback(id_2, callback);
+
+            std::thread changer_thread([&]() {
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+                std::cout << "Setting key1=value1..." << std::endl;
+                if (client.setValue("key1", "value1")) {
+                    std::cout << "Set succeeded" << std::endl;
+                } else {
+                    std::cout << "Set failed" << std::endl;
+                }
+
+                std::cout << "Getting key1..." << std::endl;
+                std::string value = client.getValue("key1");
+                std::cout << "Got value: " << value << std::endl;
+
+                std::cout << "Request Shutdown()" << std::endl;
+                client.shutdown();
+            });
+
+            changer_thread.join();
+
+            client.unregisterCallback(id_1);
+            client.unregisterCallback(id_2);
         }
-
-        auto callback = [&](const std::string& key, const std::string& value) {
-            std::cout << "Notified via callback: Key '" << key << "' = '" << value << "'" << std::endl;
-        };
-        const std::string id_1 = "1";
-        const std::string id_2 = "2";
-        client.registerCallback(id_1, callback);
-        client.registerCallback(id_2, callback);
-
-        std::thread changer_thread([&]() {
-            std::this_thread::sleep_for(std::chrono::seconds(2));
-            std::cout << "Setting key1=value1..." << std::endl;
-            if (client.setValue("key1", "value1")) {
-                std::cout << "Set succeeded" << std::endl;
-            } else {
-                std::cout << "Set failed" << std::endl;
-            }
-
-            std::cout << "Getting key1..." << std::endl;
-            std::string value = client.getValue("key1");
-            std::cout << "Got value: " << value << std::endl;
-
-            std::cout << "Request Shutdown()" << std::endl;
-            client.shutdown();
-        });
-
-        changer_thread.join();
-
-        client.unregisterCallback(id_1);
-        client.unregisterCallback(id_2);
     } else {
         std::cerr << "Failed to connect to the server within the timeout period." << std::endl;
         return -1;
