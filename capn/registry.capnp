@@ -21,6 +21,6 @@ interface Callback {
 interface Registry {
   registerCallback @0 (cb :Callback) -> (id :UInt32);
   unregisterCallback @1 (id :UInt32);
-  set @2 (key :Text, value :Text) -> (reply :Text);
+  set @2 (key :Text, value :Text);
   get @3 (key :Text) -> (reply :Text);
 }

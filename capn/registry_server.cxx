@@ -36,11 +36,11 @@ protected:
   std::map<std::string, std::string> mRegistry;
   std::mutex mRegistryMutex;
 
-public:
   std::unordered_map<uint32_t, Callback::Client> mCallbacks;
   std::mutex mRegisterMutex;
   uint32_t mNextId = 1;
 
+public:
   kj::Promise<void> registerCallback(RegisterCallbackContext context) override {
     std::lock_guard<std::mutex> lock(mRegisterMutex);
     uint32_t id = mNextId++;
@@ -61,15 +61,32 @@ public:
     return kj::READY_NOW;
   }
 
+  kj::Promise<void> set(SetContext context) override{
+    auto key = context.getParams().getKey();
+    auto value = context.getParams().getValue();
+    setValue(key, value);
+    return kj::READY_NOW;
+  }
+
+  kj::Promise<void> get(GetContext context) override {
+    auto key = context.getParams().getKey();
+    auto value = getValue(key);
+    context.getResults().setReply(value);
+    return kj::READY_NOW;
+  }
+
 
 
 public:
   std::string getValue(std::string key) {
     std::lock_guard<std::mutex> lock(mRegistryMutex);
+
     return mRegistry.contains(key) ? mRegistry[key] : "";
   }
 
   void setValue(std::string key, std::string value) {
+    std::lock_guard<std::mutex> lock(mRegistryMutex);
+
     std::string oldValue;
     bool valueChanged = false;
 
@@ -94,6 +111,17 @@ int main()
   RegistryServer registry;
   registry.setValue("key1", "value1");
   std::cout << "key1=" << registry.getValue("key1") << std::endl;
+
+  std::string socketPath = "/tmp/capn_registry.sock";
+  std::string unixsocketPath = "unix:"+socketPath;
+  unlink(socketPath.c_str());
+
+  capnp::EzRpcServer server(kj::heap<RegistryServer>(), unixsocketPath);
+  auto& waitScope = server.getWaitScope();
+
+  std::cout << "Server listening on " << socketPath << std::endl;
+  kj::NEVER_DONE.wait(waitScope);
+
 
   return 0;
 }
