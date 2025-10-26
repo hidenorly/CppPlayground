@@ -27,6 +27,7 @@
 #include <capnp/ez-rpc.h>
 #include "registry.capnp.h"
 #include <kj/debug.h>
+#include <kj/common.h>
 #include <unistd.h>
 
 
@@ -64,14 +65,31 @@ public:
   kj::Promise<void> set(SetContext context) override{
     auto key = context.getParams().getKey();
     auto value = context.getParams().getValue();
-    setValue(key, value);
+    if( setValue(key, value) ){
+      // changed
+      for( auto& [id, cb] : mCallbacks ){
+        auto req = cb.onUpdateRequest();
+        req.setKey(key);
+        req.setValue(value);
+        auto promise = req.send().then(
+          [id](auto&&) {
+            std::cout << "[Server] Notified callback id=" << id << std::endl;
+          },
+          [id](kj::Exception&& e) {
+            std::cerr << "[Server] Callback failed (id=" << id << "): " << e.getDescription().cStr() << std::endl;
+        });
+        std::ignore = promise;
+      }
+    }
     return kj::READY_NOW;
   }
 
   kj::Promise<void> get(GetContext context) override {
     auto key = context.getParams().getKey();
     auto value = getValue(key);
-    context.getResults().setReply(value);
+    context.getResults().setReply(kj::StringPtr(value));//context.getResults().setReply(kj::StringPtr(value));//context.getResults().setReply(kj::str(value));
+
+    std::cout << "get(key=" << key.cStr() << ") returns " << value << std::endl;
     return kj::READY_NOW;
   }
 
@@ -84,7 +102,7 @@ public:
     return mRegistry.contains(key) ? mRegistry[key] : "";
   }
 
-  void setValue(std::string key, std::string value) {
+  bool setValue(std::string key, std::string value) {
     std::lock_guard<std::mutex> lock(mRegistryMutex);
 
     std::string oldValue;
@@ -96,12 +114,12 @@ public:
       }
       if (oldValue != value || !mRegistry.contains(key)) {
         mRegistry[key] = value;
+        std::cout << "key=" << key << ", value=" << value << std::endl;
         valueChanged = true;
       }
     }
-    if (valueChanged) {
-      // TODO: should callback here
-    }
+
+    return valueChanged;
   }
 };
 
