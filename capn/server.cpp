@@ -18,13 +18,19 @@
 #include <iostream>
 #include <unistd.h>
 
+// capnp compile -oc++ example.capnp
 // clang++ -std=c++20 -I/opt/homebrew/include -L/opt/homebrew/lib server.cpp example.capnp.c++ -lcapnp -lcapnp-rpc -lkj-async -lkj -o server
 
 class ServerImpl final : public Example::Server {
 public:
   kj::Promise<void> sendMessage(SendMessageContext context) override {
-    auto text = context.getParams().getText();
-    std::cout << "[Server] Received: " << text.cStr() << std::endl;
+    auto _text = context.getParams().getText();
+    std::string text(_text.cStr());
+    std::cout << "[Server] Received: " << text << std::endl;
+
+    if( text == "throw" ){
+      KJ_FAIL_REQUIRE("Server simulated exception");
+    }
 
     context.getResults().setReply("Hello from server!");
     return kj::READY_NOW;
