@@ -33,4 +33,15 @@ int main() {
 
   auto response = request.send().wait(waitScope);
   std::cout << "[Client] Server replied: " << response.getReply().cStr() << std::endl;
+
+  // exception test
+  try {
+    auto req2 = cap.sendMessageRequest();
+    req2.setText("throw");
+    req2.send().wait(client.getWaitScope());
+  } catch (const kj::Exception& e) {
+    printf("[Client] Caught server exception: %s\n", e.getDescription().cStr());
+  }
+
+  return 0;
 }
