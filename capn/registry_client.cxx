@@ -40,6 +40,26 @@ private:
   std::string mHandlerName;
 };
 
+typedef std::function<void(const std::string&, const std::string&)> NOTIFIER;
+
+class LambdaCallbackHandler final : public Callback::Server {
+protected:
+  NOTIFIER mNotifier;
+
+public:
+  LambdaCallbackHandler(std::string name, NOTIFIER notifier) : mHandlerName(std::move(name)), mNotifier(std::move(notifier)) {}
+
+  kj::Promise<void> onUpdate(OnUpdateContext context) override {
+    auto key = context.getParams().getKey();
+    auto value = context.getParams().getValue();
+    mNotifier(key, value);
+    return kj::READY_NOW;
+  }
+
+private:
+  std::string mHandlerName;
+};
+
 
 void construct_benchmark_data(std::vector<std::string>& values, int count)
 {
@@ -69,6 +89,7 @@ void benchmark_invoke( capnp::EzRpcClient& client, Registry::Client& registry, i
     auto latencyMs = duration_cast<std::chrono::microseconds>(latency).count();
     std::cout << "latency setValue : " << latencyMs << std::endl;
 }
+
 
 
 
@@ -102,6 +123,15 @@ int main(int argc, char** argv) {
     regReq2.setCb(kj::mv(cb2));
     auto id2 = regReq2.send().wait(client.getWaitScope()).getId();
     std::cout << "[Client] Registered callback id=" << id2 << std::endl;
+
+    NOTIFIER notifier = [&](const std::string& key, const std::string& value) {
+      std::cout << "LAMBDA: Key '" << key << "' = '" << value << "'" << std::endl;
+    };
+    auto lamdaCallback = kj::heap<LambdaCallbackHandler>("Client3", notifier);
+    auto regReq3 = registry.registerCallbackRequest();
+    regReq3.setCb(kj::mv(lamdaCallback));
+    auto id3 = regReq3.send().wait(client.getWaitScope()).getId();
+    std::cout << "[Client] Registered callback id=" << id3 << std::endl;
 
     auto setReq = registry.setRequest();
     setReq.setKey("foo");
