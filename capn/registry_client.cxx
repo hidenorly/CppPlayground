@@ -23,6 +23,7 @@
 #include "../../OptParse/OptParse.hpp"
 #include <iostream>
 #include <unistd.h>
+#include <thread>
 
 
 class CallbackHandler final : public Callback::Server {
@@ -70,27 +71,78 @@ void construct_benchmark_data(std::vector<std::string>& values, int count)
 
 void benchmark_invoke( capnp::EzRpcClient& client, Registry::Client& registry, int count = 1000)
 {
-    std::vector<std::string> values;
-    construct_benchmark_data(values, count);
+  std::vector<std::string> values;
+  construct_benchmark_data(values, count);
 
 
-    auto startTime = std::chrono::steady_clock::now();
+  auto startTime = std::chrono::steady_clock::now();
 
-    for( auto& value : values ){
+  for( auto& value : values ){
+    auto setReq = registry.setRequest();
+    setReq.setKey("key1");
+    setReq.setValue(value);
+    setReq.send().wait(client.getWaitScope());
+  }
+
+  auto endTime = std::chrono::steady_clock::now();
+
+  auto latency = (endTime - startTime) / count;
+  auto latencyMs = duration_cast<std::chrono::microseconds>(latency).count();
+  std::cout << "latency setValue : " << latencyMs << std::endl;
+}
+
+void benchmark_callback(capnp::EzRpcClient& client, Registry::Client& registry, int count = 1000)
+{
+  {
+    auto setReq = registry.setRequest();
+    setReq.setKey("key1");
+    setReq.setValue("");
+    setReq.send().wait(client.getWaitScope());
+  }
+  std::vector<std::string> values;
+  construct_benchmark_data(values, count);
+
+  using Clock = std::chrono::steady_clock;
+  std::map<std::string, Clock::time_point> startTimes;
+  std::map<std::string, Clock::duration> latencies;
+
+  // setup callback handler
+  NOTIFIER notifier = [&](const std::string& key, const std::string& value) {
+      auto endTime = Clock::now();
+      latencies[value] = endTime - startTimes[value];
+  };
+  auto lamdaCallback = kj::heap<LambdaCallbackHandler>("1", notifier);
+  auto regReq3 = registry.registerCallbackRequest();
+  regReq3.setCb(kj::mv(lamdaCallback));
+  auto id3 = regReq3.send().wait(client.getWaitScope()).getId();
+
+
+  for( auto& value : values ){
+      startTimes[value] = Clock::now();
       auto setReq = registry.setRequest();
       setReq.setKey("key1");
       setReq.setValue(value);
       setReq.send().wait(client.getWaitScope());
-    }
+  }
 
-    auto endTime = std::chrono::steady_clock::now();
+  std::this_thread::sleep_for(std::chrono::seconds(3));
 
-    auto latency = (endTime - startTime) / count;
-    auto latencyMs = duration_cast<std::chrono::microseconds>(latency).count();
-    std::cout << "latency setValue : " << latencyMs << std::endl;
+  Clock::duration total_latency = Clock::duration::zero();
+  int64_t received_count = 0;
+
+  for (auto& entry : latencies) {
+      total_latency += entry.second;
+      received_count++;
+  }
+
+  double average_latency_us = -1;
+
+  if (received_count > 0) {
+      average_latency_us = std::chrono::duration_cast<std::chrono::microseconds>(total_latency).count() / static_cast<double>(received_count);
+  }
+
+  std::cout << "latency[uSec] callback of setValue : " << average_latency_us << std::endl;
 }
-
-
 
 
 int main(int argc, char** argv) {
@@ -111,6 +163,7 @@ int main(int argc, char** argv) {
 
   if( isBenchmark ){
     benchmark_invoke(client, registry);
+    benchmark_callback(client, registry);
   } else {
     auto cb = kj::heap<CallbackHandler>("Client1");
     auto regReq = registry.registerCallbackRequest();
