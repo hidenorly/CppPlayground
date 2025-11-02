@@ -30,8 +30,9 @@
 #include <kj/common.h>
 #include <unistd.h>
 
+# include "registry.hpp"
 
-class RegistryServer final : public Registry::Server
+class RegistryServer final : public Registry::Server, public MyInterface
 {
 protected:
   std::map<std::string, std::string> mRegistry;
@@ -96,13 +97,13 @@ public:
 
 
 public:
-  std::string getValue(std::string key) {
+  std::string getValue(std::string key) override {
     std::lock_guard<std::mutex> lock(mRegistryMutex);
 
     return mRegistry.contains(key) ? mRegistry[key] : "";
   }
 
-  bool setValue(std::string key, std::string value) {
+  bool setValue(std::string key, std::string value) override {
     std::lock_guard<std::mutex> lock(mRegistryMutex);
 
     std::string oldValue;
