@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <thread>
 
+#include "registry.hpp"
 
 class CallbackHandler final : public Callback::Server {
 public:
@@ -60,6 +61,84 @@ public:
 private:
   std::string mHandlerName;
 };
+
+
+class RegistryClient : public MyInterface
+{
+protected:
+  std::shared_ptr<capnp::EzRpcClient> mpClient;
+  std::shared_ptr<Registry::Client> mpRegistry;
+  std::string mSocketPath;
+  std::string mUnixsocketPath;
+
+public:
+  RegistryClient(std::string socketPath = "/tmp/capn_registry.sock"):mSocketPath(socketPath){
+    mUnixsocketPath = "unix:"+socketPath;
+
+    mpClient = std::make_shared<capnp::EzRpcClient>(mUnixsocketPath);
+    if(mpClient){
+      mpRegistry = std::make_shared<Registry::Client>(mpClient->getMain<Registry>());
+    }
+  }
+
+  virtual ~RegistryClient(){
+
+  }
+
+  std::string getValue(std::string key) override {
+    bool isAvailable = mpClient && mpRegistry;
+    std::string result;
+
+    if( isAvailable ){
+      auto getReq = mpRegistry->getRequest();
+      getReq.setKey(key);
+      auto reply = getReq.send().wait(mpClient->getWaitScope()).getReply();
+      result = reply.cStr();
+    }
+
+    return result;
+  }
+
+  bool setValue(std::string key, std::string value) override {
+    bool isAvailable = mpClient && mpRegistry;
+
+    if( isAvailable ){
+      auto setReq = mpRegistry->setRequest();
+      setReq.setKey(key);
+      setReq.setValue(value);
+      setReq.send().wait(mpClient->getWaitScope());
+    }
+
+    return isAvailable;
+  }
+
+  uint32_t registerCallback(const std::string id, NOTIFIER notifier){
+    uint32_t resultId = -1;
+    bool isAvailable = mpClient && mpRegistry;
+
+    if( isAvailable ){
+      auto lamdaCallback = kj::heap<LambdaCallbackHandler>(id, notifier);
+      auto regReq = mpRegistry->registerCallbackRequest();
+      regReq.setCb(kj::mv(lamdaCallback));
+      resultId = regReq.send().wait(mpClient->getWaitScope()).getId();
+    }
+
+    return resultId;
+  }
+
+
+  void unregisterCallback(const uint32_t id){
+    bool isAvailable = mpClient && mpRegistry;
+    if( isAvailable ){
+      auto unregReq = mpRegistry->unregisterCallbackRequest();
+      unregReq.setId(id);
+      unregReq.send().wait(mpClient->getWaitScope());
+    }
+  }
+};
+
+
+
 
 
 void construct_benchmark_data(std::vector<std::string>& values, int count)
@@ -195,6 +274,16 @@ int main(int argc, char** argv) {
     getReq.setKey("foo");
     auto reply = getReq.send().wait(client.getWaitScope()).getReply();
     std::cout << "[Client] get(foo) = " << reply.cStr() << std::endl;
+
+
+    RegistryClient reg;
+    NOTIFIER notifier4 = [&](const std::string& key, const std::string& value) {
+      std::cout << "LAMBDA4: Key '" << key << "' = '" << value << "'" << std::endl;
+    };
+    auto id4 = reg.registerCallback("client4", notifier4);
+    reg.setValue("hoge", "hoge_value");
+    std::cout << reg.getValue("hoge") << std::endl;
+    reg.unregisterCallback(id4);
 
     // Unregister
     auto unregReq = registry.unregisterCallbackRequest();
