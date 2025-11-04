@@ -126,7 +126,6 @@ public:
     return resultId;
   }
 
-
   void unregisterCallback(const uint32_t id){
     bool isAvailable = mpClient && mpRegistry;
     if( isAvailable ){
@@ -138,9 +137,6 @@ public:
 };
 
 
-
-
-
 void construct_benchmark_data(std::vector<std::string>& values, int count)
 {
     for( int i=0; i<count; i++) {
@@ -148,19 +144,17 @@ void construct_benchmark_data(std::vector<std::string>& values, int count)
     }
 }
 
-void benchmark_invoke( capnp::EzRpcClient& client, Registry::Client& registry, int count = 1000)
+void benchmark_invoke(int count = 1000)
 {
   std::vector<std::string> values;
   construct_benchmark_data(values, count);
 
+  RegistryClient reg;
 
   auto startTime = std::chrono::steady_clock::now();
 
   for( auto& value : values ){
-    auto setReq = registry.setRequest();
-    setReq.setKey("key1");
-    setReq.setValue(value);
-    setReq.send().wait(client.getWaitScope());
+    reg.setValue("key1", value);
   }
 
   auto endTime = std::chrono::steady_clock::now();
@@ -170,16 +164,13 @@ void benchmark_invoke( capnp::EzRpcClient& client, Registry::Client& registry, i
   std::cout << "latency setValue : " << latencyMs << std::endl;
 }
 
-void benchmark_callback(capnp::EzRpcClient& client, Registry::Client& registry, int count = 1000)
+void benchmark_callback(int count = 1000)
 {
-  {
-    auto setReq = registry.setRequest();
-    setReq.setKey("key1");
-    setReq.setValue("");
-    setReq.send().wait(client.getWaitScope());
-  }
   std::vector<std::string> values;
   construct_benchmark_data(values, count);
+
+  RegistryClient reg;
+  reg.setValue("key1", "");
 
   using Clock = std::chrono::steady_clock;
   std::map<std::string, Clock::time_point> startTimes;
@@ -190,18 +181,11 @@ void benchmark_callback(capnp::EzRpcClient& client, Registry::Client& registry, 
       auto endTime = Clock::now();
       latencies[value] = endTime - startTimes[value];
   };
-  auto lamdaCallback = kj::heap<LambdaCallbackHandler>("1", notifier);
-  auto regReq3 = registry.registerCallbackRequest();
-  regReq3.setCb(kj::mv(lamdaCallback));
-  auto id3 = regReq3.send().wait(client.getWaitScope()).getId();
-
+  auto id3 = reg.registerCallback("1", notifier);
 
   for( auto& value : values ){
       startTimes[value] = Clock::now();
-      auto setReq = registry.setRequest();
-      setReq.setKey("key1");
-      setReq.setValue(value);
-      setReq.send().wait(client.getWaitScope());
+      reg.setValue("key1", value);
   }
 
   std::this_thread::sleep_for(std::chrono::seconds(3));
@@ -235,47 +219,10 @@ int main(int argc, char** argv) {
   bool isBenchmark = optParser.values.contains("-b") && ( benchCount!=0 );
   std::cout << "benchmark : " << benchCount << std::endl;
 
-  std::string socketPath = "/tmp/capn_registry.sock";
-  std::string unixsocketPath = "unix:"+socketPath;
-  capnp::EzRpcClient client(unixsocketPath);
-  auto registry = client.getMain<Registry>();
-
   if( isBenchmark ){
-    benchmark_invoke(client, registry);
-    benchmark_callback(client, registry);
+    benchmark_invoke(benchCount);
+    benchmark_callback(benchCount);
   } else {
-    auto cb = kj::heap<CallbackHandler>("Client1");
-    auto regReq = registry.registerCallbackRequest();
-    regReq.setCb(kj::mv(cb));
-    auto id = regReq.send().wait(client.getWaitScope()).getId();
-    std::cout << "[Client] Registered callback id=" << id << std::endl;
-
-    auto cb2 = kj::heap<CallbackHandler>("Client2");
-    auto regReq2 = registry.registerCallbackRequest();
-    regReq2.setCb(kj::mv(cb2));
-    auto id2 = regReq2.send().wait(client.getWaitScope()).getId();
-    std::cout << "[Client] Registered callback id=" << id2 << std::endl;
-
-    NOTIFIER notifier = [&](const std::string& key, const std::string& value) {
-      std::cout << "LAMBDA: Key '" << key << "' = '" << value << "'" << std::endl;
-    };
-    auto lamdaCallback = kj::heap<LambdaCallbackHandler>("Client3", notifier);
-    auto regReq3 = registry.registerCallbackRequest();
-    regReq3.setCb(kj::mv(lamdaCallback));
-    auto id3 = regReq3.send().wait(client.getWaitScope()).getId();
-    std::cout << "[Client] Registered callback id=" << id3 << std::endl;
-
-    auto setReq = registry.setRequest();
-    setReq.setKey("foo");
-    setReq.setValue("bar");
-    setReq.send().wait(client.getWaitScope());
-
-    auto getReq = registry.getRequest();
-    getReq.setKey("foo");
-    auto reply = getReq.send().wait(client.getWaitScope()).getReply();
-    std::cout << "[Client] get(foo) = " << reply.cStr() << std::endl;
-
-
     RegistryClient reg;
     NOTIFIER notifier4 = [&](const std::string& key, const std::string& value) {
       std::cout << "LAMBDA4: Key '" << key << "' = '" << value << "'" << std::endl;
@@ -284,14 +231,7 @@ int main(int argc, char** argv) {
     reg.setValue("hoge", "hoge_value");
     std::cout << reg.getValue("hoge") << std::endl;
     reg.unregisterCallback(id4);
-
-    // Unregister
-    auto unregReq = registry.unregisterCallbackRequest();
-    unregReq.setId(id);
-    unregReq.send().wait(client.getWaitScope());
-    std::cout << "[Client] Unregistered callback id=" << id << std::endl;
   }
-
 
   return 0;
 }
