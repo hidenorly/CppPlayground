@@ -27,21 +27,6 @@
 
 #include "registry.hpp"
 
-class CallbackHandler final : public Callback::Server {
-public:
-  CallbackHandler(std::string name) : mHandlerName(std::move(name)) {}
-
-  kj::Promise<void> onUpdate(OnUpdateContext context) override {
-    auto key = context.getParams().getKey();
-    auto value = context.getParams().getValue();
-    std::cout << "[" << mHandlerName << "] onUpdate: " << key.cStr() << " = " << value.cStr() << std::endl;
-    return kj::READY_NOW;
-  }
-
-private:
-  std::string mHandlerName;
-};
-
 typedef std::function<void(const std::string&, const std::string&)> NOTIFIER;
 
 class LambdaCallbackHandler final : public Callback::Server {
