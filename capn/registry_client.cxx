@@ -16,7 +16,7 @@
 
 // cd ~/work; git clone https://github.com/hidenorly/OptParse.git
 // capnp compile -oc++ registry.capnp
-// clang++ -std=c++20 -I/opt/homebrew/include -L/opt/homebrew/lib registry_client.cxx registry.capnp.c++ -lcapnp -lcapnp-rpc -lkj-async -lkj -o client
+// clang++ -std=c++23 -I/opt/homebrew/include -L/opt/homebrew/lib registry_client.cxx registry.capnp.c++ -lcapnp -lcapnp-rpc -lkj-async -lkj -o client
 
 #include <capnp/ez-rpc.h>
 #include "registry.capnp.h"
@@ -24,6 +24,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <thread>
+#include <functional>
 
 #include "registry.hpp"
 
@@ -55,6 +56,7 @@ protected:
   std::shared_ptr<Registry::Client> mpRegistry;
   std::string mSocketPath;
   std::string mUnixsocketPath;
+  std::vector<uint32_t> mCallbackIds;
 
 public:
   RegistryClient(std::string socketPath = "/tmp/capn_registry.sock"):mSocketPath(socketPath){
@@ -67,7 +69,14 @@ public:
   }
 
   virtual ~RegistryClient(){
+    bool isAvailable = mpClient && mpRegistry;
 
+    if( isAvailable ){
+      for(auto& id : mCallbackIds){
+        unregisterCallback(id);
+      }
+      mCallbackIds.clear();
+    }
   }
 
   std::string getValue(std::string key) override {
@@ -106,6 +115,7 @@ public:
       auto regReq = mpRegistry->registerCallbackRequest();
       regReq.setCb(kj::mv(lamdaCallback));
       resultId = regReq.send().wait(mpClient->getWaitScope()).getId();
+      mCallbackIds.push_back(resultId);
     }
 
     return resultId;
@@ -118,6 +128,7 @@ public:
       unregReq.setId(id);
       unregReq.send().wait(mpClient->getWaitScope());
     }
+    std::erase_if(mCallbackIds, [&](uint32_t theId){ return theId == id; });
   }
 };
 
