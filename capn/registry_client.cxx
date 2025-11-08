@@ -58,7 +58,7 @@ public:
     }
   }
 
-  virtual uint32_t registerCallback(const std::string id, Callback::Server callback){
+  virtual uint32_t _registerCallback(const std::string id, kj::Own<Callback::Server> callback){
     uint32_t resultId = -1;
     bool isAvailable = mpClient && mpClientImpl;
 
@@ -106,43 +106,18 @@ private:
 
 
 
-
-class RegistryClient : public MyInterface
+class RegistryClient : public ClientBase<Registry::Client>, public MyInterface
 {
-protected:
-  std::shared_ptr<capnp::EzRpcClient> mpClient;
-  std::shared_ptr<Registry::Client> mpRegistry;
-  std::string mSocketPath;
-  std::string mUnixsocketPath;
-  std::vector<uint32_t> mCallbackIds;
-
 public:
-  RegistryClient(std::string socketPath = "/tmp/capn_registry.sock"):mSocketPath(socketPath){
-    mUnixsocketPath = "unix:"+socketPath;
-
-    mpClient = std::make_shared<capnp::EzRpcClient>(mUnixsocketPath);
-    if(mpClient){
-      mpRegistry = std::make_shared<Registry::Client>(mpClient->getMain<Registry>());
-    }
-  }
-
-  virtual ~RegistryClient(){
-    bool isAvailable = mpClient && mpRegistry;
-
-    if( isAvailable ){
-      for(auto& id : mCallbackIds){
-        unregisterCallback(id);
-      }
-      mCallbackIds.clear();
-    }
+  RegistryClient(std::string socketPath = "/tmp/capn_registry.sock"):ClientBase<Registry::Client>(socketPath){
   }
 
   std::string getValue(std::string key) override {
-    bool isAvailable = mpClient && mpRegistry;
+    bool isAvailable = mpClient && mpClientImpl;
     std::string result;
 
     if( isAvailable ){
-      auto getReq = mpRegistry->getRequest();
+      auto getReq = mpClientImpl->getRequest();
       getReq.setKey(key);
       auto reply = getReq.send().wait(mpClient->getWaitScope()).getReply();
       result = reply.cStr();
@@ -152,10 +127,10 @@ public:
   }
 
   bool setValue(std::string key, std::string value) override {
-    bool isAvailable = mpClient && mpRegistry;
+    bool isAvailable = mpClient && mpClientImpl;
 
     if( isAvailable ){
-      auto setReq = mpRegistry->setRequest();
+      auto setReq = mpClientImpl->setRequest();
       setReq.setKey(key);
       setReq.setValue(value);
       setReq.send().wait(mpClient->getWaitScope());
@@ -165,28 +140,9 @@ public:
   }
 
   uint32_t registerCallback(const std::string id, NOTIFIER notifier){
-    uint32_t resultId = -1;
-    bool isAvailable = mpClient && mpRegistry;
-
-    if( isAvailable ){
-      auto lamdaCallback = kj::heap<LambdaCallbackHandler>(id, notifier);
-      auto regReq = mpRegistry->registerCallbackRequest();
-      regReq.setCb(kj::mv(lamdaCallback));
-      resultId = regReq.send().wait(mpClient->getWaitScope()).getId();
-      mCallbackIds.push_back(resultId);
-    }
-
-    return resultId;
-  }
-
-  void unregisterCallback(const uint32_t id){
-    bool isAvailable = mpClient && mpRegistry;
-    if( isAvailable ){
-      auto unregReq = mpRegistry->unregisterCallbackRequest();
-      unregReq.setId(id);
-      unregReq.send().wait(mpClient->getWaitScope());
-    }
-    std::erase_if(mCallbackIds, [&](uint32_t theId){ return theId == id; });
+    auto lamdaCallback = kj::heap<LambdaCallbackHandler>(id, notifier);
+    kj::Own<Callback::Server> basePtr = kj::mv(lamdaCallback);
+    return _registerCallback(id, kj::mv(basePtr));
   }
 };
 
