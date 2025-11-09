@@ -38,3 +38,8 @@
 infer-out/*
 
 grpc/build/*
+capn/server
+capn/client
+
+*.capnp.c++
+*.capnp.h
