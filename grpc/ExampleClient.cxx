@@ -187,7 +187,8 @@ void benchmark_invoke( MyServiceClient& client, int count = 1000)
     auto endTime = std::chrono::steady_clock::now();
 
     auto latency = (endTime - startTime) / count;
-    std::cout << "latency setValue : " << latency << std::endl;
+    auto latencyMs = duration_cast<std::chrono::microseconds>(latency).count();
+    std::cout << "latency[uSec] setValue : " << latencyMs << std::endl;
 }
 
 void benchmark_callback(MyServiceClient& client, int count = 1000)
