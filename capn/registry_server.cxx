@@ -30,7 +30,7 @@
 #include <kj/common.h>
 #include <unistd.h>
 
-# include "registry.hpp"
+#include "registry.hpp"
 
 class RegistryServer final : public Registry::Server, public MyInterface
 {
@@ -115,7 +115,7 @@ public:
       }
       if (oldValue != value || !mRegistry.contains(key)) {
         mRegistry[key] = value;
-        std::cout << "key=" << key << ", value=" << value << std::endl;
+        //std::cout << "key=" << key << ", value=" << value << std::endl;
         valueChanged = true;
       }
     }
